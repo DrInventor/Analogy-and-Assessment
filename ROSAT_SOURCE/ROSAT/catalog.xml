@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<catalog xmlns="urn:oasis:names:tc:entity:xmlns:xml:catalog" prefer="system">
+    <system systemId="http://search.webofknowledge.com/esti/wokmws/ws/WokSearchLite?wsdl" uri="xml-resources/web-service-references/WokSearchLite/wsdl/search.webofknowledge.com/esti/wokmws/ws/WokSearchLite.wsdl"/>
+</catalog>
