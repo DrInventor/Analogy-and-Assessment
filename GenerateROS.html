@@ -1,0 +1,167 @@
+<html><head>
+<meta http-equiv="content-type" content="text/html; charset=windows-1252"><title>Maynooth University - GenerateROS Prototype</title></head>
+<body><a href="http://www.drinventor.eu/"><img src="http://dodsrv.cs.nuim.ie/drinventor/logo10.jpg"></a>
+<a href="http://dodsrv.cs.nuim.ie/drinventor/"><img src="http://dodsrv.cs.nuim.ie/drinventor/logomay.png" height="120px"></a>
+<h1>Maynooth University - Dr Inventor Files (D3.1)</h1>
+<h2>GenerateROS Prototype for Deliverable (D3.1)</h2>
+
+<h2>Name</h2>
+GenerateROS - Generate Research Object Skeletons from tab separated files: <a href="http://dodsrv.cs.nuim.ie/drinventor/GenerateROS source.zip">source files</a>
+<h2>Options</h2>
+The following options are supported:
+<dl compact="compact">
+<dt><b>-pg</b> <i>filename</i>
+</dt><dd>Process a file, requires corresponding _tokenfile.csv. 
+Generates a .gv file and populates Neo4j database for the file (if 
+settings.txt is set)
+</dd><dt><b>-af</b>
+</dt><dd>Process all csv files in the current directory.
+</dd><dt><b>-dd</b> <i>filename</i>
+</dt><dd>Dumps database. Dumps the current sqlite database file to a csv file.</dd></dl>
+<h2>Requirements</h2>
+GenerateROS (<a href="http://dodsrv.cs.nuim.ie/drinventor/GenerateROS binary.zip">Windows binary</a>) requires the following
+<dl compact="compact">
+<dt><i>Microsoft Visual C++ 2013 Redistributable</i>
+</dt><dd>The binary was built using Visual Studio 2013
+</dd><dt><i>libcurl.dll</i>
+</dt><dd>libcurl is a free client-side URL transfer library. Used to provide interactions with Neo4j database
+</dd><dt><i>zlib.dll</i>
+</dt><dd>Required for libcurl to work
+</dd><dt><i>settings.txt</i>
+</dt><dd>A settings file. Specify the sqlite database file to 
+create/update, which folder to store the generated files, where Graphviz
+ is located (if pngs are desired) and the location of the Neo4j database</dd></dl>
+<h2>Components</h2>
+The individual components can be used as separate classes in other 
+programs. Generate ROS is written to be portable. Further details will 
+follow.
+<dl compact="compact">
+<dt>Neo4jInteract: <i>neo4jinteract.h</i>
+</dt><dd>Provides interactions with Neo4j database. Requires libcurl and rapidjson libraries to compile. 
+</dd><dt>DrInventorSqlitedb: <i>drinventorsql.h</i>
+</dt><dd>Provides a database to store information. Each graph is given a
+ graphid which this Class works with. New graphs are indexed and their 
+properties are updated using this Class.
+</dd><dt>DrInventorFindTriples: <i>DrInventorFindtriples.h</i>
+</dt><dd>Given the lexical information and part-of-speech tables for a 
+paper, this Class will find the required "subject-verb-object" triples 
+from the data. It attempts to limit the number of unknown nodes in a 
+triple
+</dd><dt>ROSFromTriples: <i>rosfromtriples.h</i>
+</dt><dd>Given a triple, can generate the ROS outputting to .gv file and Neo4j database. Requires Neo4jInteract and DrInventorSqlitedb.
+</dd><dt>GraphInterface: <i>graphinterface.h</i>
+</dt><dd>Requires the <i>Boost</i> (portable C++ source libraries). Boostgraph finds information about the ROS (e.g. number of connected components etc.).</dd></dl>
+<h2>Class (public) details</h2>
+<dl compact="compact">
+<dt><b>Neo4jInteract</b>
+</dt><dd>
+<dl compact="compact">
+<dt><i>Neo4jInteract(const char *location)</i>
+</dt><dd>Requires the location of the Neo4j database. Attempts to connect to the database, and sets  the class variable <i>curlok</i> is set to <i>true/false</i> respectively. <i>curlok</i> should be checked before any other attempts to interact with the database
+</dd><dt><i>bool AddNodetoNeo4j(const char *word, int type, const char *gvlabel, long *nodeid, long graphid)</i>
+</dt><dd>Adds a given node to the Neo4j database. Return <i>true</i> if successful. Will write the id number returned by Neo4j to the pointer <i>*nodeid</i>. <i>Type</i> being 1 means a Noun; 2 means a Verb. 
+</dd><dt><i>bool MakeLink(int type, long nodeid, long nodeto)</i>
+</dt><dd>Makes a relationship between the nodes <i>nodeid</i> and <i>nodeto</i>. Type is if the relationship is a subject or an object.
+</dd><dt><i>bool isopen(void)</i>
+</dt><dd>Function to check if the database was connected to successfully.
+</dd><dt><i>bool neo4cypher(const char *command)</i>
+</dt><dd>Function to send Cypher commands to the Neo4j database. No processing is done except for outputting the database's response
+</dd></dl>
+</dd><dt><b>DrInventorSqlitedb</b>
+</dt><dd>
+<dl compact="compact">
+<dt><i>DrInventorSqlitedb(const char *dir, const char *dbfile)</i>
+</dt><dd>Requires the location of the sqlite file <i>dbfile</i> and also
+ the directory to store any generated results. Creates the database file
+ if it does not exist. The constructor opens a connection to the 
+database and the variable <i>dbopen</i> is set appropriately. 
+</dd><dt><i>bool isopen(void)</i>
+</dt><dd>Function to check if the database was connected to successfully.
+</dd><dt><i>std::string GiveFileHome(void)</i>
+</dt><dd>Returns the string pointing to the results folder
+</dd><dt><i>long InsertFile(const char *filename, const char *tknfilename)</i>
+</dt><dd>Inserts the file (and its corresponding tokenfile) into the 
+database as a new empty graph. Creates the required folders in the 
+results folder. Returns the graphid.
+</dd><dt><i>void UpdateNodeCount(long graphid, unsigned int relcount, unsigned int conceptcount)</i>
+</dt><dd>Updates the number of concept nodes and relation nodes for the given <i>graphid</i>
+</dd><dt><i>void UpdateProperties(long graphid, int nounique, const char
+ *highestdelist, int highestdeg, int largconn, int nocomponents, const 
+char *mostcommonverbst)</i>
+</dt><dd>Like UpdateNodeCount, updates some of the graph properies.
+</dd><dt><i>void DumpDatabase(const char *)</i>
+</dt><dd>Writes the database to a csv file. The filename is passed to the function
+</dd><dt><i>~DrInventorSqlitedb()</i>
+</dt><dd>Ensures the connection to the database is closed
+</dd></dl>
+</dd><dt><b>DrInventorFindTriples</b>
+</dt><dd>
+<dl compact="compact">
+<dt><i>DrInventorFindTriples(const char *file, const char *tknfile)</i>
+</dt><dd>Takes the csv (tab-separated) lexical information filename and 
+attempts to read it, similarly with the POS file (tknfile). If 
+successful the <i>fisopen</i> variable is set appropriately and the 
+lexical file is read in line by line and parsed. The lexical information
+ graphs are created for each sentence.
+</dd><dt><i>bool isopen(void)</i>
+</dt><dd>Function to check if the files were opened successfully
+</dd><dt><i>void MakeNewLinks(void)</i>
+</dt><dd>Tags each word with Noun, Verb or other. Discards words that are not required. Attempts to combine the applicable Verbs.
+</dd><dt><i>void GiveTriples(std::vector&lt;std::string&gt; *vb, std::vector&lt;std::string&gt; *sbj, std::vector&lt;std::string&gt; *obj)</i>
+</dt><dd>GiveTriples first checks if the triples have been found and if they have not, it uses the private function <i>FindTriples()</i> to make the links. It then sets the triples to the given vectors, preserving order.
+</dd><dt><i>void WriteTriplesToCSVFile(const char *file)</i>
+</dt><dd>Outputs the triples to a CSV file. (If the triples are not yet made, they will be by the private member function <i>FindTriples()</i>
+</dd><dt><i>bool PrintInbetweenGraphs(void)</i>
+</dt><dd>Should not be used. Testing function.
+</dd></dl>
+</dd><dt><b>ROSFromTriples</b>
+</dt><dd>
+<dl compact="compact">
+<dt><i>ROSFromTriples(const std::vector&lt;std::string&gt; vb, const 
+std::vector&lt;std::string&gt; sbj, const std::vector&lt;std::string&gt;
+ obj, long gid)</i>
+</dt><dd>Requires three vectors with the order preserved that correspond to the triples. Also requires the graphid to be passed.
+</dd><dt>Variables: <i>DrInventorSqlitedb *sqlitedb</i>; <i>Neo4jInteract *neodb</i>; <i>std::string gvlocation, neo4jlocation</i>
+</dt><dd>These variables must be set appropriately for each instance of the class.
+</dd><dt><i>void PrintGVFile(const char *filename, bool makepng, bool Neo4j, const char *dirtxt)</i>
+</dt><dd>This function will firstly make the triples by calling the private member function <i>makelinks()</i>
+ if required. It then writes the .gv files to the appropriate directory 
+and updates the Neo4j database. If the location of Graphviz was 
+specified it will create the .png file and store this in the same folder
+ as the .gv file. It finally updates the sqlite database with the count 
+of the nodes.
+</dd><dt>Arrays <i>std::vector&lt;struct anode&gt; concepts</i>;<i>std::vector&lt;struct anode&gt; relations</i>;<i>std::vector&lt;struct link&gt; links.</i>
+</dt><dd>These variables contain the information about the ROS. The array <i>concepts</i> contains a list of all (unique) concept words as well as their applicable Neo4j node id, similarly for the array <i>relations</i> (except these are not unique). Finally the array <i>links</i> contains all the links between nodes, indexed by the appropriated array (concept/relation).
+</dd></dl>
+</dd><dt><b>GraphInterface</b>
+</dt><dd>
+<dl compact="compact">
+<dt><i>GraphInterface(std::vector&lt;struct anode&gt; *, std::vector&lt;struct anode&gt; *, std::vector&lt;struct link&gt; *, long gid)</i>
+</dt><dd>The constructor requires three arrays to be passed to it. These
+ are (in order) the list of concept nodes, list of relation nodes and 
+list of links. Additionally the graphid should be passed. Currently, the
+ constructor extracts all the information by creating a Boost type 
+graph, searching for the <i>mostcommonverb</i>, the concept node with the <i>HighestDegree</i> and the number of <i>connected_components</i>. These are then written to the corresponding variables where they can be accessed.
+</dd><dt>Variables: <i><ul> <li>std::vector&lt;int&gt; largestcomponents, highestdegree;</li>
+	<li>std::vector&lt;std::string&gt; highestdegreestring, mostcommonverb;</li>
+	<li>int lrgcomp, hghdeg, nouniquerelat, nocomponents;</li></ul></i>
+</dt><dd><ul><li>The std::vector&lt;int&gt; arrays are lists of the 1) 
+components with the largest number of nodes and 2) nodes with the 
+highestdegree. This is as more than one node/component might be the 
+largest</li>
+<li>std::vector&lt;std::string&gt; arrays contain lists of the actual words 1) with highestdegree and 2) mostcommonverb</li>
+<li>The ints contain 1) the size of largest component, 2) the degree of 
+the node with highest degree, 3) the number of unique relations and 4) 
+the number of connected components in the graph.
+</li></ul>
+</dd></dl>
+</dd></dl>
+
+<hr>
+This research project receives funding from the European Commission’s 
+Seventh Framework Programme. Activity ICT (FP7-ICT-2013.8.1), Grant 
+agreement no: 611383.
+<img src="GenerateROS-Prototype_files/euflag.jpg">
+
+
+</body></html>
