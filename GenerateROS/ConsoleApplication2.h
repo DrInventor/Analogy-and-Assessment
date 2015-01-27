@@ -1,8 +1,7 @@
 #include <stdio.h>
-#include <tchar.h>
+//#include <tchar.h>
 
 #include <tinydir.h>
-
 
 #include "neo4jinteract.h"
 #include "graphinterface.h"
@@ -29,3 +28,4 @@ struct settings{
 bool parsesettings(struct settings *aset);
 int ProcessGraph(const char *, DrInventorSqlitedb *sqlitedb, const char *, const char *);
 int ProcessAllGraphs(DrInventorSqlitedb *sqlitedb, const char *graphviz, const char *neo4jlo);
+int KeepSentences(int argc, char** argv, bool range=true);

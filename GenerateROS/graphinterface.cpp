@@ -25,7 +25,7 @@ GraphInterface::GraphInterface(std::vector<struct anode> *concepts, std::vector<
 	LargestComponent(&component, num);
 	nouniquerelat = FindUniqueRelations(relations, &mostcommonverb);
 	for (unsigned int i = 0; i < mostcommonverb.size(); ++i)
-		printf_s("Most Common Verb: %s\n", mostcommonverb[i].c_str());
+		printf("Most Common Verb: %s\n", mostcommonverb[i].c_str());
 	nocomponents = num;
 }
 

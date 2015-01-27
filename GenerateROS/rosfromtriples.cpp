@@ -1,5 +1,9 @@
 #include "rosfromtriples.h"
 
+#if !(defined(WIN32) || defined(_WIN32) || defined(__WIN32) && !defined(__CYGWIN__))
+#define _stricmp strcasecmp
+#endif
+
 ROSFromTriples::~ROSFromTriples(){
 
 }
@@ -19,7 +23,7 @@ int ROSFromTriples::find_concept(const char *tofind){
 ROSFromTriples::ROSFromTriples(const std::vector<std::string> vb, const std::vector<std::string> sbj, const std::vector<std::string> obj, long gid){
 	//Constructor: Takes in graphid (from SQL database) and copies the vb, sbj and obj arrays into a struct local to the class
 	if (vb.size() != sbj.size() || vb.size() != obj.size()){
-		printf_s("Triples passed incorrectly\n");
+		printf("Triples passed incorrectly\n");
 	}
 	else {
 		triples.resize(vb.size());
@@ -50,7 +54,7 @@ void ROSFromTriples::makelinks(void){
 		int loc;
 		if ((*it).sbj == "%%-1%%"){
 			char buf[16];
-			sprintf_s(buf, "[unknown]-%d", unknown);
+			sprintf(buf, "[unknown]-%d", unknown);
 			snumb = concepts.size();
 			temp.word = buf;
 			concepts.emplace_back(temp);
@@ -68,7 +72,7 @@ void ROSFromTriples::makelinks(void){
 		unsigned int onumb;
 		if ((*it).obj == "%%-1%%"){
 			char buf[16];
-			sprintf_s(buf, "[unknown]-%d", unknown);
+			sprintf(buf, "[unknown]-%d", unknown);
 			onumb = concepts.size();
 			temp.word = buf;
 			concepts.emplace_back(temp);
@@ -110,10 +114,10 @@ void ROSFromTriples::PrintGVFile(const char *filename, bool makepng, bool Neo4j,
 	*/
 	if (!linksmade)
 		makelinks();
-	printf_s("%s\n", filename);
+	printf("%s\n", filename);
 	FILE *out;
 	std::ofstream cnodef, rnodef, linksf;
-	fopen_s(&out, filename, "w");
+	out = fopen(filename, "w");
 	std::stringstream filewrite;
 	filewrite << dirtxt << "conceptlist";
 	cnodef.open(filewrite.str().c_str());
@@ -124,11 +128,11 @@ void ROSFromTriples::PrintGVFile(const char *filename, bool makepng, bool Neo4j,
 	filewrite << dirtxt << "linklist";
 	linksf.open(filewrite.str().c_str());
 	if (out){
-		fprintf_s(out, "digraph graphname {\n\tnode [style=filled color=green]\n");
+		fprintf(out, "digraph graphname {\n\tnode [style=filled color=green]\n");
 		for (unsigned int i = 0; i < concepts.size(); ++i){
-			fprintf_s(out, "\tc%u [label=\"%s\" shape=box style=filled color=yellow]\n", i, concepts[i].word.c_str());
+			fprintf(out, "\tc%u [label=\"%s\" shape=box style=filled color=yellow]\n", i, concepts[i].word.c_str());
 			char buf[256];
-			sprintf_s(buf, "c%u", i);
+			sprintf(buf, "c%u", i);
 			if (Neo4j) neodb->AddNodetoNeo4j(concepts[i].word.c_str(), 1, buf, &concepts[i].nodeid, graphid);
 			if (cnodef.is_open()){
 				//If: so there is no blank newline at the end of the file
@@ -139,9 +143,9 @@ void ROSFromTriples::PrintGVFile(const char *filename, bool makepng, bool Neo4j,
 			}
 		}
 		for (unsigned int i = 0; i < links.size(); ++i){
-			fprintf_s(out, "\tr%u [label=\"%s\"];c%d -> r%d -> c%d\n", i, relations[links[i].vb].word.c_str(), links[i].sbj, i, links[i].obj);
+			fprintf(out, "\tr%u [label=\"%s\"];c%d -> r%d -> c%d\n", i, relations[links[i].vb].word.c_str(), links[i].sbj, i, links[i].obj);
 			char buf[256];
-			sprintf_s(buf, "r%u", i);
+			sprintf(buf, "r%u", i);
 			if (Neo4j){
 				neodb->AddNodetoNeo4j(relations[links[i].vb].word.c_str(), 2, buf, &relations[i].nodeid, graphid);
 				makeneo4jrelations(i);
@@ -165,12 +169,12 @@ void ROSFromTriples::PrintGVFile(const char *filename, bool makepng, bool Neo4j,
 			rnodef.close();
 		if (linksf.is_open())
 			linksf.close();
-		//fprintf_s(out, "\tlabel=\"[*] indicates an unknown concept node\";\n\tlabelloc = bottom;\n\tlabeljust = right;\n}");
-		fprintf_s(out, "}");
+		//fprintf(out, "\tlabel=\"[*] indicates an unknown concept node\";\n\tlabelloc = bottom;\n\tlabeljust = right;\n}");
+		fprintf(out, "}");
 		fclose(out);
 		if (makepng && gvlocation != ""){
 			std::stringstream buf2;
-			buf2 << gvlocation << "dot " << filename << " -o " << filename << ".png -T png";
+			buf2 << gvlocation << "dot " << filename << " -o " << filename << ".gif -T gif";
 			system(buf2.str().c_str());
 		}
 		sqlitedb->UpdateNodeCount(graphid, relations.size(), concepts.size());

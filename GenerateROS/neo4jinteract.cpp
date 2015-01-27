@@ -51,7 +51,7 @@ bool Neo4jInteract::AddNodetoNeo4j(const char *word, int type, const char *gvlab
 		long http_code = 0;
 		curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
 		if (res != CURLE_OK){
-			printf_s("curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
+			printf("curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
 			curl_easy_cleanup(curl);
 			free(chunk.memory);
 			*nodeid = -1;
@@ -86,7 +86,7 @@ bool Neo4jInteract::AddNodetoNeo4j(const char *word, int type, const char *gvlab
 						http_code = 0;
 						curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
 						if (res != CURLE_OK){
-							printf_s("curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
+							printf("curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
 							free(chunk.memory);
 							free(chunk2.memory);
 							curl_easy_cleanup(curl);
@@ -94,7 +94,7 @@ bool Neo4jInteract::AddNodetoNeo4j(const char *word, int type, const char *gvlab
 						}
 						curl_easy_cleanup(curl);
 						/*for (unsigned int i = 0; i < chunk2.size; ++i)
-						printf_s("%c", chunk2.memory[i]);*/
+						printf("%c", chunk2.memory[i]);*/
 						free(chunk2.memory);
 					}
 				}
@@ -136,7 +136,7 @@ Neo4jInteract::Neo4jInteract(const char *location){
 		long http_code = 0;
 		curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
 		if (res != CURLE_OK){
-			printf_s("curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
+			printf("curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
 			curlok = false;
 		}
 		curl_easy_cleanup(curl);
@@ -179,13 +179,13 @@ bool Neo4jInteract::neo4cypher(const char *command){
 	long http_code = 0;
 	curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
 	if (res != CURLE_OK){
-		printf_s("curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
+		printf("curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
 		curl_easy_cleanup(curl);
 		free(chunk.memory);
 		return false;
 	}
 	curl_easy_cleanup(curl);
-	printf_s(chunk.memory);
+	printf(chunk.memory);
 	free(chunk.memory);
 	return true;
 }
@@ -236,7 +236,7 @@ bool Neo4jInteract::MakeLink(int type, long nodeid, long nodeto){
 	long http_code = 0;
 	curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
 	if (res != CURLE_OK){
-		printf_s("curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
+		printf("curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
 		curl_easy_cleanup(curl);
 		free(chunk.memory);
 		return false;

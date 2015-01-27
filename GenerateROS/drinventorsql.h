@@ -5,12 +5,17 @@
 #include <vector>
 #include <fstream>
 #include <sstream>
+#if defined(_WIN32)
 #include <direct.h>
+#else
+#include <string.h>
+#include <sys/stat.h>
+#endif
 
 class DrInventorSqlitedb{
 public:
 	long InsertFile(const char *filename, const char *tknfilename);
-	DrInventorSqlitedb(const char *dir, const char *dbfile);
+	DrInventorSqlitedb(const char *dir, const char *dbfile, const char which);
 	bool isopen(void);
 	std::string GiveFileHome(void);
 	void UpdateNodeCount(long graphid, unsigned int relcount, unsigned int conceptcount);
@@ -20,6 +25,7 @@ public:
 private:
 	std::string filehome;
 	bool dbopen;
+	char fb; //Which slash (linux/windows)
 	bool copyfile(const char *from, const char *to);
 	std::string dbfilename;
 	bool do_sqlite_exec(const char *query);
