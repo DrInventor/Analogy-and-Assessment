@@ -1,6 +1,6 @@
 #include "neo4jinteract.h"
 
-bool Neo4jInteract::AddNodetoNeo4j(const char *word, int type, const char *gvlab, long *nodeid, long graphid){
+bool Neo4jInteract::AddNodetoNeo4j(const char *word, int type, const char *gvlab, long *nodeid, long graphid, long sentid){
 	/*
 	Adds a node to the Neo4j database. Uses rapidjson to form the json expression (could easily form without rapidjson but used anyway)
 	Sends information through libcurl
@@ -21,7 +21,9 @@ bool Neo4jInteract::AddNodetoNeo4j(const char *word, int type, const char *gvlab
 	d.AddMember("Graphid", graphid, allocator);
 	valObjectString.SetString(gvlab, allocator);
 	d.AddMember("GVLabel", valObjectString, allocator);
-
+	if (type == 2){
+		d.AddMember("SentID", sentid, allocator);
+	}
 	rapidjson::StringBuffer strbuf;
 	rapidjson::Writer<rapidjson::StringBuffer> writer(strbuf);
 	d.Accept(writer);
@@ -51,7 +53,7 @@ bool Neo4jInteract::AddNodetoNeo4j(const char *word, int type, const char *gvlab
 		long http_code = 0;
 		curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
 		if (res != CURLE_OK){
-			printf("curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
+			printf_s("curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
 			curl_easy_cleanup(curl);
 			free(chunk.memory);
 			*nodeid = -1;
@@ -86,7 +88,7 @@ bool Neo4jInteract::AddNodetoNeo4j(const char *word, int type, const char *gvlab
 						http_code = 0;
 						curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
 						if (res != CURLE_OK){
-							printf("curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
+							printf_s("curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
 							free(chunk.memory);
 							free(chunk2.memory);
 							curl_easy_cleanup(curl);
@@ -94,7 +96,7 @@ bool Neo4jInteract::AddNodetoNeo4j(const char *word, int type, const char *gvlab
 						}
 						curl_easy_cleanup(curl);
 						/*for (unsigned int i = 0; i < chunk2.size; ++i)
-						printf("%c", chunk2.memory[i]);*/
+						printf_s("%c", chunk2.memory[i]);*/
 						free(chunk2.memory);
 					}
 				}
@@ -136,12 +138,124 @@ Neo4jInteract::Neo4jInteract(const char *location){
 		long http_code = 0;
 		curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
 		if (res != CURLE_OK){
-			printf("curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
+			//printf_s("curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
 			curlok = false;
 		}
 		curl_easy_cleanup(curl);
 		free(chunk.memory);
 	}
+}
+
+void replaceinstring(std::string &toedit, const char *rpl, const char *with){
+	size_t found;
+	while ((found = toedit.find(rpl)) != std::string::npos){
+		toedit.replace(found, strlen(rpl), with);
+	}
+}
+
+bool Neo4jInteract::GVtoNeo4j(const char *filename, long graphid){
+	std::ifstream toread;
+	if (graphid < 1){
+		printf_s("Bad Graph ID\n");
+		return false;
+	}
+	if (!curlok){
+		printf_s("Cannot connect to Neo4j database\n");
+		return false;
+	}
+	toread.open(filename);
+	if (!toread.is_open()){
+		printf_s("Could not open file\n");
+		return false;
+	}
+	printf_s("Opening file %s to convert to Neo4j with GraphID: %d\n", filename, graphid);
+	std::string temp,leftover;
+	getline(toread, temp);
+	std::vector<struct anode> conceptnodes;
+	std::vector<struct anode> relationnodes;
+	std::vector<struct link> links;
+	struct anode tempnode;
+	struct link templink;
+	size_t found;
+	//Extract the nodes and links from the GV into vectors
+	while (getline(toread, temp)){
+		replaceinstring(temp, "\t", "");
+		replaceinstring(temp, " ", "");
+		if (temp.at(0) == 'c'){ //concept node
+			found = temp.find('[');
+			if (found != std::string::npos){
+				leftover = temp.substr(1, found - 1);
+				tempnode.nodeid = atoi(leftover.c_str());
+				found = temp.find("label=\"");
+				if (found != std::string::npos){
+					tempnode.word = temp.substr(found + 7, temp.find('\"', found+7) - found - 7);
+					conceptnodes.emplace_back(tempnode);
+				}
+			}
+		}
+		else if (temp.at(0) == 'r'){ //relation node
+			found = temp.find('[');
+			if (found != std::string::npos){
+				leftover = temp.substr(1, found - 1);
+				tempnode.nodeid = atoi(leftover.c_str());
+				found = temp.find("label=\"");
+				if (found != std::string::npos){
+					tempnode.word = temp.substr(found + 7, temp.find('\"', found + 7) - found - 7);
+					leftover = temp.substr(temp.find(';')+1);
+					sscanf_s(leftover.c_str(), "c%d->r%d->c%d", &templink.sbj, &templink.vb, &templink.obj);
+					if ((found = temp.find("SentID=")) == std::string::npos)
+						tempnode.sentid = 0;
+					else{
+						leftover = temp.substr(found + 7);
+						sscanf_s(leftover.c_str(), "%d", &tempnode.sentid);
+					}
+					relationnodes.emplace_back(tempnode);
+					links.emplace_back(templink);
+				}
+			}
+		}//else ignore line
+	}
+	toread.close();
+	//Now actually put them into the database
+	if (isopen()){
+		//First remove the old nodes with the matching GraphID
+		std::stringstream cyphercmd;
+		cyphercmd << "MATCH (n) WHERE n.Graphid=" << graphid << " OPTIONAL MATCH (n)-[r]-() DELETE n,r;";
+		neo4cypher(cyphercmd.str().c_str());
+		std::vector<struct anode>::iterator it;
+		char buf[256];
+		for (it = conceptnodes.begin(); it != conceptnodes.end(); ++it){
+			sprintf_s(buf, "c%u", (*it).nodeid);
+			AddNodetoNeo4j((*it).word.c_str(), 1, buf, &(*it).extra, graphid, 0);
+		}
+		for (it = relationnodes.begin(); it != relationnodes.end(); ++it){
+			sprintf_s(buf, "r%u", (*it).nodeid);
+			AddNodetoNeo4j((*it).word.c_str(), 2, buf, &(*it).extra, graphid, (*it).sentid);
+		}
+		for (std::vector<struct link>::iterator lit = links.begin(); lit != links.end(); ++lit){
+			int sbj	,  obj , vb;
+			sbj = obj = vb = -1;
+			for (unsigned int i = 0; i < conceptnodes.size(); ++i){
+				if (conceptnodes[i].nodeid == (*lit).sbj)
+					sbj = i;
+				else if (conceptnodes[i].nodeid == (*lit).obj)
+					obj = i;
+				if (sbj != -1 && obj != -1)
+					break;
+			}
+			for (unsigned int i = 0; i < relationnodes.size(); ++i){
+				if (relationnodes[i].nodeid == (*lit).vb){
+					vb = i;
+					break;
+				}
+			}
+			MakeLink(1, conceptnodes[sbj].extra, relationnodes[vb].extra);
+			MakeLink(2, relationnodes[vb].extra, conceptnodes[obj].extra);
+		}
+		printf_s("all done\n");
+	}
+	return true;
+
 }
 
 bool Neo4jInteract::neo4cypher(const char *command){
@@ -179,13 +293,13 @@ bool Neo4jInteract::neo4cypher(const char *command){
 	long http_code = 0;
 	curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
 	if (res != CURLE_OK){
-		printf("curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
+		printf_s("curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
 		curl_easy_cleanup(curl);
 		free(chunk.memory);
 		return false;
 	}
 	curl_easy_cleanup(curl);
-	printf(chunk.memory);
+//	printf_s(chunk.memory);
 	free(chunk.memory);
 	return true;
 }
@@ -236,7 +350,7 @@ bool Neo4jInteract::MakeLink(int type, long nodeid, long nodeto){
 	long http_code = 0;
 	curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
 	if (res != CURLE_OK){
-		printf("curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
+		printf_s("curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
 		curl_easy_cleanup(curl);
 		free(chunk.memory);
 		return false;

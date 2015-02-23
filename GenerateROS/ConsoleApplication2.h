@@ -1,6 +1,4 @@
 #include <stdio.h>
-//#include <tchar.h>
-
 #include <tinydir.h>
 
 #include "neo4jinteract.h"
@@ -9,7 +7,19 @@
 #include "drinventorsql.h"
 #include "rosfromtriples.h"
 #include "drinventorfindtriples.h"
+//#include "javawrappers.h"
 
+//Make sure correct folder slash is used in Linux or Windows (and some other function changes)
+#if defined(WIN32) || defined(_WIN32) || defined(__WIN32) && !defined(__CYGWIN__)
+static const char slash = '\\';
+#else
+static const char slash = '/';
+#define stricmp strcasecmp
+#define printf_s printf
+#define fprintf_s fprintf
+#define sprintf_s sprintf
+#define sscanf_s sscanf
+#endif
 
 std::vector<std::string> splitbydelimiter(std::string tosplit, std::string delim, bool usequotes = false);
 void replaceinstring(std::string &toedit, const char *rpl, const char *with);
@@ -26,6 +36,6 @@ struct settings{
 };
 
 bool parsesettings(struct settings *aset);
-int ProcessGraph(const char *, DrInventorSqlitedb *sqlitedb, const char *, const char *);
+int ProcessGraph(const char *, DrInventorSqlitedb *sqlitedb, const char *, const char *, bool tc=false);
 int ProcessAllGraphs(DrInventorSqlitedb *sqlitedb, const char *graphviz, const char *neo4jlo);
 int KeepSentences(int argc, char** argv, bool range=true);

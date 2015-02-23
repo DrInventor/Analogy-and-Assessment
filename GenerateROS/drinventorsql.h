@@ -12,9 +12,17 @@
 #include <sys/stat.h>
 #endif
 
+#if !(defined(WIN32) || defined(_WIN32) || defined(__WIN32) && !defined(__CYGWIN__))
+#define stricmp strcasecmp
+#define printf_s printf
+#define fprintf_s fprintf
+#define sprintf_s sprintf
+#define sscanf_s sscanf
+#endif
+
 class DrInventorSqlitedb{
 public:
-	long InsertFile(const char *filename, const char *tknfilename);
+	long InsertFile(const char *filename, const char *tknfilename, bool *isnew);
 	DrInventorSqlitedb(const char *dir, const char *dbfile, const char which);
 	bool isopen(void);
 	std::string GiveFileHome(void);

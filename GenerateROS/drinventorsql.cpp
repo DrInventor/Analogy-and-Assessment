@@ -25,7 +25,7 @@ DrInventorSqlitedb::DrInventorSqlitedb(const char *dir, const char *dbfile, cons
 	if (!FileOpenable(dbfile)){
 		rc = sqlite3_open((const char *)dbfile, &db);
 		if (rc){
-			printf("Can't open database: %s\n", sqlite3_errmsg(db));
+			printf_s("Can't open database: %s\n", sqlite3_errmsg(db));
 			sqlite3_close(db);
 		}
 		else{
@@ -37,7 +37,7 @@ DrInventorSqlitedb::DrInventorSqlitedb(const char *dir, const char *dbfile, cons
 		rc = sqlite3_open((const char *)dbfile, &db);
 		//wstring output = convertInt(rc);
 		if (rc){
-			printf("Can't open database: %s\n", sqlite3_errmsg(db));
+			printf_s("Can't open database: %s\n", sqlite3_errmsg(db));
 			sqlite3_close(db);
 		}
 		else
@@ -142,7 +142,7 @@ void DrInventorSqlitedb::UpdateProperties(long graphid, int nounique, const char
 	char *zErrMsg;
 	bool rc = do_sqlite_exec(sqlcommand.str().c_str(), &zErrMsg);
 	if (!rc){
-		printf("SQL error3: %s\n", zErrMsg);
+		printf_s("SQL error3: %s\n", zErrMsg);
 		free(zErrMsg);
 	}
 }
@@ -151,7 +151,7 @@ void DrInventorSqlitedb::sqlcreate(void){
 	char *zErrMsg;
 	bool rc = do_sqlite_exec("CREATE TABLE Graphlist(key INTEGER PRIMARY KEY, filename TEXT collate nocase, tknfilename TEXT collate nocase, relationnodes UINT, conceptnodes UINT, uniquerelations UINT, mostcommonverbstring TEXT, highestdegreestring TEXT, highestdegree UINT, noconnectedcomponents UINT, largestconnected UINT);", &zErrMsg);
 	if (!rc){
-		printf("SQL error1: %s\n", zErrMsg);
+		printf_s("SQL error1: %s\n", zErrMsg);
 		free(zErrMsg);
 		dbopen = false;
 		sqlite3_close(db);
@@ -164,24 +164,40 @@ void DrInventorSqlitedb::UpdateNodeCount(long graphid, unsigned int relcount, un
 	char *zErrMsg;
 	bool rc = do_sqlite_exec(sqlcommand.str().c_str(), &zErrMsg);
 	if (!rc){
-		printf("SQL error2: %s\n", zErrMsg);
+		printf_s("SQL error2: %s\n", zErrMsg);
 		free(zErrMsg);
 	}
 }
 
-long DrInventorSqlitedb::InsertFile(const char *filename, const char *tknfilename){
+long DrInventorSqlitedb::InsertFile(const char *filename, const char *tknfilename, bool *isnew){
+	//This is all temporary storage of files in folder structure. Should be changed in full integration but need to know where exactly
 	std::stringstream sqlcommand;
+	sqlcommand << "SELECT key from Graphlist WHERE filename='" << filename << "';";
+	std::vector<std::string> values;
+	unsigned int nrows, ncols;
+	do_sqlite_table(sqlcommand.str().c_str(), &values, &nrows, &ncols);
+	if (nrows > 0){
+/*		bool keepgoing = true;
+		while (keepgoing){
+			printf_s("\nThis file is already in the database, overwrite (y/n)?");
+			char resp[20];
+			scanf("%s", resp);
+			if (strcmp(resp,"y") == 0) keepgoing = false;
+			else if (strcmp(resp, "n") == 0) keepgoing = false;
+		}*/
+		*isnew = false;
+		return atol(values[0].c_str());
+	}
+	sqlcommand.str("");
 	sqlcommand << "INSERT into Graphlist(filename,tknfilename) VALUES('" << filename << "','" << tknfilename << "');";
-	/*sqlcommand += filename;
-	sqlcommand += "','";
-	sqlcommand += tknfilename;
-	sqlcommand += "');";*/
 	char *zErrMsg;
 	bool rc = do_sqlite_exec(sqlcommand.str().c_str(), &zErrMsg);
 	if (!rc){
-		printf("SQL error2: %s\n", zErrMsg);
+		printf_s("SQL error2: %s\n", zErrMsg);
 		free(zErrMsg);
+		return -1;
 	}
+	*isnew = true;
 	//Create the directory to store the files and copy the originals into this directory
 	long filekey = (long)sqlite3_last_insert_rowid(db);
 	std::stringstream newdir;
@@ -189,16 +205,15 @@ long DrInventorSqlitedb::InsertFile(const char *filename, const char *tknfilenam
 	#if defined(_WIN32)
 	_mkdir(newdir.str().c_str());
 	#else 
-	mkdir(newdir.str().c_str(), 0777); // notice that 777 is different than 0777
+	mkdir(newdir.str().c_str(), 0777);
 	#endif
 
-
-	//_mkdir();
+	/*//Making copies of the CSV files. Probably not really needed
 	newdir << fb << filename;
 	copyfile(filename, newdir.str().c_str());
 	newdir.str("");
 	newdir << filehome << filekey << fb << tknfilename;
-	copyfile(tknfilename, newdir.str().c_str());
+	copyfile(tknfilename, newdir.str().c_str());*/
 	return filekey;
 }
 

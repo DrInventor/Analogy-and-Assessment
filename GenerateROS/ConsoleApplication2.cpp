@@ -3,14 +3,6 @@
 
 #include "ConsoleApplication2.h"
 
-//Make sure correct folder slash is used in Linux or Windows
-#if defined(WIN32) || defined(_WIN32) || defined(__WIN32) && !defined(__CYGWIN__)
-static const char slash = '\\';
-#else
-static const char slash = '/';
-#define stricmp strcasecmp
-#endif
-
 int main(int argc, char** argv)
 {
 	/*
@@ -21,7 +13,7 @@ int main(int argc, char** argv)
 	First the settings file is read and the sqlitedb has to be opened - pointers to this object should be passed
 	Curl will also need to be initialised
 	*/
-	//printf("Hello World\n");
+	//printf_s("Hello World\n");
 	struct settings set;
 	parsesettings(&set);
 	curl_global_init(CURL_GLOBAL_ALL);
@@ -29,7 +21,7 @@ int main(int argc, char** argv)
 		if (strcmp(argv[1], "-pg") == 0){
 			//Process file into Graph
 			if (argc < 3){
-				printf("Usage -pg \"filename\"\n");
+				printf_s("Usage -pg \"filename\"\n");
 				return 0;
 			}
 			else{
@@ -40,7 +32,7 @@ int main(int argc, char** argv)
 		else if (strcmp(argv[1], "-dd") == 0){
 			//Dump database to file
 			if (argc < 3){
-				printf("Usage -dd \"filename\"\n");
+				printf_s("Usage -dd \"filename\"\n");
 				return 0;
 			}
 			else{
@@ -49,13 +41,13 @@ int main(int argc, char** argv)
 			}
 		}
 		else if (strcmp(argv[1], "-af") == 0){
-			printf("processing all .csv files that have matching _tokenfile.csv\n");
+			printf_s("processing all .csv files that have matching _tokenfile.csv\n");
 			DrInventorSqlitedb sqlitedb(set.store.c_str(), set.dbfil.c_str(), slash);
 			ProcessAllGraphs(&sqlitedb, set.gravz.c_str(), set.neo4j.c_str());
 		}
 		else if (strcmp(argv[1], "-kr") == 0){
 			//Extract range of sentences from the csv file and output a new csv file
-			//Usage -ks inputfile outputfile startingSID endingSID
+			//Usage -kr inputfile outputfile startingSID endingSID
 			KeepSentences(argc, argv, true);
 		}
 		else if (strcmp(argv[1], "-ks") == 0){
@@ -63,10 +55,25 @@ int main(int argc, char** argv)
 			//Usage -ks inputfile outputfile sID1 sID2 sID3.......
 			KeepSentences(argc, argv, false);
 		}
+		else if (strcmp(argv[1], "-gc") == 0){
+			//Convert GV file
+			if (argc < 4){
+				printf_s("Usage -gc \"filename\" graphid\n");
+				return 0;
+			}
+			else{
+				Neo4jInteract neo4jinteract(set.neo4j.c_str());
+				neo4jinteract.GVtoNeo4j(argv[2], atoi(argv[3]));
+			}
+		}
+		else if (strcmp(argv[1], "-tc") == 0 && argc >=2){
+			DrInventorSqlitedb sqlitedb(set.store.c_str(), set.dbfil.c_str(), slash);
+			ProcessGraph(argv[2], &sqlitedb, set.gravz.c_str(), set.neo4j.c_str(),true);
+		}
 	}
 	else
-		printf("Need to use options -pg, -dd");
-	//printf("\nGoodbye Cruel World\n");
+		printf_s("Need to use options -pg, -dd, gc");
+	//printf_s("\nGoodbye Cruel World\n");
 	return 0;
 }
 
@@ -95,19 +102,19 @@ int KeepSentences(int argc, char** argv, bool range){
 		return 1;
 	std::string temp;
 	getline(toread, temp);
-	fprintf(out, "%s\n", temp.c_str());
+	fprintf_s(out, "%s\n", temp.c_str());
 	while (getline(toread, temp)){
 		int sID;
 		std::string leftover;
 		leftover = temp.substr(0, temp.find('\t'));
-		sscanf(leftover.c_str(), "\"%d\"", &sID);
+		sscanf_s(leftover.c_str(), "\"%d\"", &sID);
 		if (range){
 			if (sID >= starting && sID <= ending)
-				fprintf(out, "%s\n", temp.c_str());
+				fprintf_s(out, "%s\n", temp.c_str());
 		}
 		else{
 			if (std::find(sids.begin(), sids.end(), sID) != sids.end()){
-				fprintf(out, "%s\n", temp.c_str());
+				fprintf_s(out, "%s\n", temp.c_str());
 			}
 		}
 	}
@@ -147,7 +154,6 @@ int ProcessAllGraphs(DrInventorSqlitedb *sqlitedb, const char *graphviz, const c
 		buf2[strlen(buf2) - 4] = '\0';
 		strcat(buf2, "_tokenInfo_list.csv");
 		if (std::find(tokens.begin(), tokens.end(), buf2) != tokens.end()){
-			printf("%s : %s\n", filenames[i].c_str(), "HOWYA");
 			ProcessGraph(filenames[i].c_str(), sqlitedb, graphviz, neo4jlo);
 		}
 	}
@@ -155,7 +161,7 @@ int ProcessAllGraphs(DrInventorSqlitedb *sqlitedb, const char *graphviz, const c
 	return 0;
 }
 
-int ProcessGraph(const char *argument, DrInventorSqlitedb *sqlitedb, const char *graphviz, const char *neo4jlo){
+int ProcessGraph(const char *argument, DrInventorSqlitedb *sqlitedb, const char *graphviz, const char *neo4jlo,  bool tc){
 	/*
 	Lots to do
 	Currently: It reads the file and creates the ExtractTriples object by passing the filename and tknfile - The initial graphs(plain white) are made
@@ -173,33 +179,50 @@ int ProcessGraph(const char *argument, DrInventorSqlitedb *sqlitedb, const char 
 		return 0;
 	char buf[512];
 	strcpy(buf, argument);
-	printf("opening %s\n", buf);
+	printf_s("opening %s\n", buf);
 	char buf2[2048];
 	strcpy(buf2, buf);
 	buf2[strlen(buf2) - 4] = '\0';
 	strcat(buf2, "_tokenInfo_list.csv");
 	DrInventorFindTriples dotriple(buf, buf2);
 	if (!dotriple.isopen()){
-		printf("Error opening file %s", buf);
+		printf_s("Error opening file %s", buf);
 		return 0;
 	}
-	long gid = sqlitedb->InsertFile(buf, buf2);
-	dotriple.MakeNewLinks();
+	dotriple.MakeNewLinks(tc);
 	buf[strlen(buf) - 4] = '\0';
-	sprintf(buf2, "%s%ld%c%s.gv", sqlitedb->GiveFileHome().c_str(),gid,slash,buf);
+	bool isnew;
+	long gid = sqlitedb->InsertFile(buf, buf2, &isnew);
+	if (gid == -1){
+		printf_s("Error with inserting file to database\n");
+		return 0;
+	}
+	sprintf_s(buf2, "%s%ld%c%s.gv", sqlitedb->GiveFileHome().c_str(),gid,slash,buf);
 	std::vector<std::string> vb, sbj, obj;
-	dotriple.GiveTriples(&vb, &sbj, &obj);
-	//dotriple.PrintInbetweenGraphs();
-	//dotriple.WriteTriplesToCSVFile("triplecsv.csv");
-	dotriple.~DrInventorFindTriples();
-	ROSFromTriples doros(vb, sbj, obj, gid);
+	std::vector<long> sentid;
+	//dotriple.GiveTriples(&vb, &sbj, &obj, &sentid);
+	dotriple.MakeTripleSent();
+	if (tc){
+		dotriple.PrintInbetweenGraphs();
+		dotriple.WriteTriplesToCSVFile("triplecsv.csv");
+		return 0;
+	}
+	Neo4jInteract neo4db(neo4jlo);
+	if (neo4db.isopen() && !isnew){
+		std::stringstream cyphercmd;
+		cyphercmd << "MATCH (n) WHERE n.Graphid=" << gid << " OPTIONAL MATCH (n)-[r]-() DELETE n,r;";
+		neo4db.neo4cypher(cyphercmd.str().c_str());
+	}
+	//ROSFromTriples doros(vb, sbj, obj, sentid, gid);
+	ROSFromTriples doros(&dotriple.triplesent, gid);
 	doros.gvlocation = graphviz;
 	doros.sqlitedb = sqlitedb;
-	Neo4jInteract neo4db(neo4jlo);
 	doros.neodb = &neo4db;
 	std::stringstream writetodir;
 	writetodir << sqlitedb->GiveFileHome() << gid << slash;
+	printf_s("Graphid : %d\n", gid);
 	doros.PrintGVFile(buf2, true, neo4db.isopen(), writetodir.str().c_str());
+	
 	GraphInterface testing(&doros.concepts, &doros.relations, &doros.links, gid);
 	std::stringstream highestdegstring, mostcommonverbstring;
 	for (unsigned int i = 0; i < testing.highestdegreestring.size(); ++i){
@@ -213,7 +236,6 @@ int ProcessGraph(const char *argument, DrInventorSqlitedb *sqlitedb, const char 
 			mostcommonverbstring << ";";
 	}
 	sqlitedb->UpdateProperties(gid, testing.nouniquerelat, highestdegstring.str().c_str(), testing.hghdeg, testing.lrgcomp, testing.nocomponents, mostcommonverbstring.str().c_str());
-
 	return 0;
 }
 
@@ -243,12 +265,12 @@ bool parsesettings(struct settings *aset){
 		aset->neo4j = "http://localhost:7474/";
 	if (aset->dbfil == ""){
 		char buf[128];
-		sprintf(buf, "results%cdata.db", slash);
+		sprintf_s(buf, "results%cdata.db", slash);
 		aset->dbfil = buf;
 	}
 	if (aset->store == ""){
 		char buf[64];
-		sprintf(buf, "results%c", slash);
+		sprintf_s(buf, "results%c", slash);
 		aset->store = buf;
 	}
 	size_t found;
@@ -265,20 +287,12 @@ bool parsesettings(struct settings *aset){
 }
 
 
-
-void replaceinstring(std::string &toedit, const char *rpl, const char *with){
-	size_t found;
-	while ((found = toedit.find(rpl)) != std::string::npos){
-		toedit.replace(found, strlen(rpl), with);
-	}
-}
-
 //Some testing functions
-std::vector<std::string> splitbydelimiter(std::string tosplit, std::string delim, bool usequotes){
+/*std::vector<std::string> splitbydelimiter(std::string tosplit, std::string delim, bool usequotes){
 	std::string leftover = tosplit;
 	size_t found;
 	std::vector<std::string> toreturn;
-	printf("processing: %s\n", tosplit.c_str());
+	printf_s("processing: %s\n", tosplit.c_str());
 	if (!usequotes){
 		while ((found = leftover.find(delim)) != std::string::npos){
 			toreturn.emplace_back(leftover.substr(0, found));
@@ -334,6 +348,13 @@ size_t write_data(void *ptr, size_t size, size_t nmemb, FILE *stream){
 	written = fwrite(ptr, size, nmemb, stream);
 	return written;
 }
+
+void replaceinstring(std::string &toedit, const char *rpl, const char *with){
+	size_t found;
+	while ((found = toedit.find(rpl)) != std::string::npos){
+		toedit.replace(found, strlen(rpl), with);
+	}
+}*/
 
 /*bool libcurlSaveFile(const wchar_t *url, const wchar_t *filename){
 	char *urlc = new char[wcslen(url) + 2];

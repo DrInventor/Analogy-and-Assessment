@@ -5,6 +5,14 @@
 
 #include "commonstructs.h"
 
+#if !(defined(WIN32) || defined(_WIN32) || defined(__WIN32) && !defined(__CYGWIN__))
+#define stricmp strcasecmp
+#define printf_s printf
+#define fprintf_s fprintf
+#define sprintf_s sprintf
+#define sscanf_s sscanf
+#endif
+
 class GraphInterface{
 public:
 	GraphInterface(std::vector<struct anode> *, std::vector<struct anode> *, std::vector<struct link> *, long gid);

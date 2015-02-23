@@ -2,6 +2,8 @@
 
 #include <string>
 #include <sstream> 
+#include <fstream>
+#include <vector>
 
 #include "curl/curl.h"
 #include "curl/types.h"
@@ -9,14 +11,24 @@
 #include "rapidjson/document.h"
 #include "rapidjson/stringbuffer.h"
 #include "rapidjson/writer.h"
+#include "commonstructs.h"
+
+#if !(defined(WIN32) || defined(_WIN32) || defined(__WIN32) && !defined(__CYGWIN__))
+#define stricmp strcasecmp
+#define printf_s printf
+#define fprintf_s fprintf
+#define sprintf_s sprintf
+#define sscanf_s sscanf
+#endif
 
 class Neo4jInteract{
 public:
 	bool isopen(void);
-	bool AddNodetoNeo4j(const char *word, int type, const char *gvlabel, long *nodeid, long graphid);
+	bool AddNodetoNeo4j(const char *word, int type, const char *gvlabel, long *nodeid, long graphid, long sentid);
 	bool MakeLink(int type, long nodeid, long nodeto);
 	Neo4jInteract(const char *location);
 	bool neo4cypher(const char *command);
+	bool GVtoNeo4j(const char *filename, long graphid);
 private:
 	bool curlok;
 	struct MemoryStruct {

@@ -1,15 +1,14 @@
 #include "drinventorfindtriples.h"
 
 DrInventorFindTriples::~DrInventorFindTriples(){
-	//printf("Destructor\n");
 }
 
-void DrInventorFindTriples::GiveTriples(std::vector<std::string> *vb, std::vector<std::string> *sbj, std::vector<std::string> *obj){
+/*void DrInventorFindTriples::GiveTriples(std::vector<std::string> *vb, std::vector<std::string> *sbj, std::vector<std::string> *obj, std::vector<long> *sentid){
 	/*
 	Outputs the triples to separate vectors, should be passed pointers.
 	The triples have to first be found, so if not done yet, do it now
 	*/
-	if (!foundtriples)
+	/*if (!foundtriples)
 		FindTriples();
 	for (std::vector<struct sentence>::iterator sit = sentences.begin(); sit != sentences.end(); ++sit){
 		for (std::vector<struct triple>::iterator it = (*sit).triples.begin(); it != (*sit).triples.end(); ++it){
@@ -22,9 +21,33 @@ void DrInventorFindTriples::GiveTriples(std::vector<std::string> *vb, std::vecto
 				obj->emplace_back("%%-1%%");
 			else
 				obj->emplace_back((*sit).words[(*it).obj].st);
+			sentid->emplace_back((long)(*sit).id);
+		}
+	}
+}*/
+
+void DrInventorFindTriples::MakeTripleSent(void){
+	struct triplesent temp;
+	int count = 0;
+	if (!foundtriples)
+		FindTriples();
+	for (std::vector<struct sentence>::iterator sit = sentences.begin(); sit != sentences.end(); ++sit){
+		for (std::vector<struct triple>::iterator it = (*sit).triples.begin(); it != (*sit).triples.end(); ++it){
+			temp.vb = (*sit).words[(*it).ver].st;
+			if ((*it).sbj == -1)
+				temp.sbj = "%%-1%%";
+			else
+				temp.sbj = (*sit).words[(*it).sbj].st;
+			if ((*it).obj == -1)
+				temp.obj = "%%-1%%";
+			else
+				temp.obj = (*sit).words[(*it).obj].st;
+			temp.sentid = (long)((*sit).id);
+			triplesent.emplace_back(temp);
 		}
 	}
 }
+
 
 DrInventorFindTriples::DrInventorFindTriples(const char *file, const char *tknfile){
 	/*
@@ -55,6 +78,7 @@ DrInventorFindTriples::DrInventorFindTriples(const char *file, const char *tknfi
 			getline(toread, temp);
 			while (getline(toread, temp))
 				processline(temp);
+			toread.close();
 		}
 	}
 }
@@ -68,44 +92,44 @@ bool DrInventorFindTriples::PrintInbetweenGraphs(void){
 	If the Graphs with only nouns and verbs with the verbs combined is wanted this function can be used, however the initial (plain white) graphs will not be generated since broken
 	*/
 	if (graphsmade){
-		printf("inbetween, %d\n", sentences.size());
+		printf_s("inbetween, %d\n", sentences.size());
 		for (unsigned int i = 0; i < sentences.size(); ++i){
 			char buf[1024];
 			FILE *out;
 			if (!blockprint){
-				sprintf(buf, "%s-%d.gv", filename.c_str(), i);
+				sprintf_s(buf, "%s-%d.gv", filename.c_str(), sentences[i].id);
 				out = fopen(buf, "w");
 				if (out){
-					fprintf(out, "digraph graphname {\n");
+					fprintf_s(out, "digraph graphname {\n");
 					for (unsigned int j = 0; j < sentences[i].words.size(); ++j)
-						fprintf(out, "\t\tw%d [label=\"%s\"]\n", j, sentences[i].words[j].st.c_str());
+						fprintf_s(out, "\t\tw%d [label=\"%s\"]\n", j, sentences[i].words[j].st.c_str());
 					for (unsigned int j = 0; j < sentences[i].links.size(); ++j)
-						fprintf(out, "\t\tw%d -> w%d [label=\"%s\"]\n", sentences[i].links[j].from, sentences[i].links[j].to, sentences[i].links[j].relat.c_str());
-					fprintf(out, "}");
+						fprintf_s(out, "\t\tw%d -> w%d [label=\"%s\"]\n", sentences[i].links[j].to, sentences[i].links[j].from, sentences[i].links[j].relat.c_str());
+					fprintf_s(out, "}");
 					fclose(out);
 					char buf3[1024];
-					sprintf(buf3, "c:\\users\\user\\documents\\gv\\dot %s -o %s.png -T png", buf, buf);
+					sprintf_s(buf3, "c:\\users\\user\\documents\\gv\\dot %s -o %s.png -T png", buf, buf);
 					system(buf3);
 				}
 			}
-			sprintf(buf, "%s-n%d.gv", filename.c_str(), i);
-			printf("a:%s\n", buf);
+			sprintf_s(buf, "%s-n%d.gv", filename.c_str(), sentences[i].id);
+			printf_s("a:%s\n", buf);
 			out = fopen(buf, "w");
 			if (out){
-				fprintf(out, "digraph graphname {\n");
+				fprintf_s(out, "digraph graphname {\n");
 				for (unsigned int j = 0; j < sentences[i].words.size(); ++j){
 					if (sentences[i].words[j].type != 0){
-						fprintf(out, "\t\tw%d [label=\"%s\" ", j, sentences[i].words[j].st.c_str());
-						if (sentences[i].words[j].type == 1) fprintf(out, "style=filled color=green]\n");
-						else if (sentences[i].words[j].type == 2) fprintf(out, "shape=box style=filled color=yellow]\n");
+						fprintf_s(out, "\t\tw%d [label=\"%s\" ", j, sentences[i].words[j].st.c_str());
+						if (sentences[i].words[j].type == 1) fprintf_s(out, "style=filled color=green]\n");
+						else if (sentences[i].words[j].type == 2) fprintf_s(out, "shape=box style=filled color=yellow]\n");
 					}
 				}
 				for (unsigned int j = 0; j < sentences[i].newlinks.size(); ++j)
-					fprintf(out, "\t\tw%d -> w%d [label=\"%s\"]\n", sentences[i].newlinks[j].from, sentences[i].newlinks[j].to, sentences[i].newlinks[j].relat.c_str());
-				fprintf(out, "}");
+					fprintf_s(out, "\t\tw%d -> w%d [label=\"%s\"]\n", sentences[i].newlinks[j].from, sentences[i].newlinks[j].to, sentences[i].newlinks[j].relat.c_str());
+				fprintf_s(out, "}");
 				fclose(out);
 				char buf2[1024];
-				sprintf(buf2, "c:\\users\\user\\documents\\gv\\dot %s -o %s.png -T png", buf, buf);
+				sprintf_s(buf2, "c:\\users\\user\\documents\\gv\\dot %s -o %s.png -T png", buf, buf);
 				system(buf2);
 			}
 			fclose(out);
@@ -113,12 +137,12 @@ bool DrInventorFindTriples::PrintInbetweenGraphs(void){
 		return true;
 	}
 	else{
-		printf("Graphs not made");
+		printf_s("Graphs not made");
 		return false;
 	}
 }
 
-void DrInventorFindTriples::FindTriples(void){
+void DrInventorFindTriples::FindTriples(bool tc){
 	/*
 	Extract the triples: , ensure links are only processed once
 	1) Find a link with a verb in it. If the link is of type SBJ make a triple from this by
@@ -131,7 +155,7 @@ void DrInventorFindTriples::FindTriples(void){
 	3) After all SBJ and OBJ links have been dealt with, find any verbs with two unprocessed links to nouns and make triples from these
 	*/
 	struct triple temptriple;
-	printf("searching for triples\n");
+	printf_s("searching for triples\n");
 	for (std::vector<struct sentence>::iterator sit = sentences.begin(); sit != sentences.end(); ++sit){
 		std::vector<std::vector<struct link>::iterator> processed;
 		for (std::vector<struct link>::iterator it = (*sit).newlinks.begin(); it != (*sit).newlinks.end(); ++it){
@@ -143,7 +167,7 @@ void DrInventorFindTriples::FindTriples(void){
 					temptriple.obj = -1;
 					//Got a subject so find object;//Should a nit not in processed check be done??
 					for (std::vector<struct link>::iterator nit = (*sit).newlinks.begin(); nit != (*sit).newlinks.end(); ++nit){
-						if (nit != it && std::find(processed.begin(), processed.end(), nit) == processed.end() && (*it).from == (*nit).from && (*sit).words[(*nit).to].type == 2 && (*nit).relat == "OBJ"){
+						if (nit != it && std::find(processed.begin(), processed.end(), nit) == processed.end() && (*it).from == (*nit).from && (*nit).relat == "OBJ"){
 							processed.emplace_back(nit);
 							temptriple.obj = (*nit).to;
 							break;
@@ -204,7 +228,7 @@ void DrInventorFindTriples::FindTriples(void){
 					temptriple.sbj = -1;
 					//Got an object so find subject;
 					for (std::vector<struct link>::iterator nit = (*sit).newlinks.begin(); nit != (*sit).newlinks.end(); ++nit){
-						if (nit != it && std::find(processed.begin(), processed.end(), nit) == processed.end() && (*it).from == (*nit).from && (*sit).words[(*nit).to].type == 2 && (*nit).relat == "SBJ"){
+						if (nit != it && std::find(processed.begin(), processed.end(), nit) == processed.end() && (*it).from == (*nit).from && (*nit).relat == "SBJ"){
 							processed.emplace_back(nit);
 							temptriple.sbj = (*nit).to;
 							break;
@@ -220,55 +244,87 @@ void DrInventorFindTriples::FindTriples(void){
 							}
 						}
 					}
+					//If still no luck, check if there is an incoming NOUN node to the verb
+					if (temptriple.sbj == -1){
+						for (std::vector<struct link>::iterator nit = (*sit).newlinks.begin(); nit != (*sit).newlinks.end(); ++nit){
+							if (nit != it && std::find(processed.begin(), processed.end(), nit) == processed.end() && (*it).from == (*nit).to && (*sit).words[(*nit).from].type == 2){
+								processed.emplace_back(nit);
+								temptriple.sbj = (*nit).from;
+								break;
+							}
+						}
+					}
+					//If still no luck, maybe try backtracking up one verb chain for a SBJ?
+					if (temptriple.sbj == -1){
+						bool keepgoing = true;
+						for (std::vector<struct link>::iterator nit = (*sit).newlinks.begin(); keepgoing && nit != (*sit).newlinks.end(); ++nit){
+							if (nit != it && (*it).from == (*nit).to && (*sit).words[(*nit).from].type == 1){
+								for (std::vector<struct link>::iterator anotit = (*sit).newlinks.begin(); keepgoing && anotit != (*sit).newlinks.end(); ++anotit){
+									if (anotit != it && anotit != nit){
+										if ((*anotit).from == (*nit).from && (*sit).words[(*anotit).to].type == 2 && (*anotit).relat == "SBJ"){
+											struct word tempword;
+											tempword.id = 0;
+											tempword.type = 1;
+											tempword.st = (*sit).words[(*nit).from].st + "_" + (*sit).words[(*it).from].st;
+											(*sit).words.emplace_back(tempword);
+											temptriple.ver = (*sit).words.size() - 1;
+											temptriple.sbj = (*anotit).to;
+												keepgoing = false;
+											}
+									}
+								}
+							}
+						}
+					}
 					(*sit).triples.emplace_back(temptriple);
 				}
 			}
 		}
-		//Having found dealt with all Sbj and Obj links. If any verbs have two adjacent nouns, add them as a triple
-		for (std::vector<struct link>::iterator it = (*sit).newlinks.begin(); it != (*sit).newlinks.end(); ++it){
-			if (std::find(processed.begin(), processed.end(), it) == processed.end()){
-				if ((*sit).words[(*it).from].type == 1 && (*sit).words[(*it).to].type == 2){
-					for (std::vector<struct link>::iterator nit = (*sit).newlinks.begin(); nit != (*sit).newlinks.end(); ++nit){
-						if (nit != it && std::find(processed.begin(), processed.end(), nit) == processed.end()){
-							if ((*it).from == (*nit).from && (*sit).words[(*nit).to].type == 2){
-								processed.emplace_back(nit);
-								temptriple.sbj = (*it).to;
-								temptriple.ver = (*it).from;
-								temptriple.obj = (*nit).to;
-								(*sit).triples.emplace_back(temptriple);
-							}
-							else if ((*it).from == (*nit).to && (*sit).words[(*nit).from].type == 2){
-								processed.emplace_back(nit);
-								temptriple.sbj = (*it).to;
-								temptriple.ver = (*it).from;
-								temptriple.obj = (*nit).from;
-								(*sit).triples.emplace_back(temptriple);
+		//Having found and dealt with all Sbj and Obj links. If any verbs have two adjacent nouns, add them as a triple
+			for (std::vector<struct link>::iterator it = (*sit).newlinks.begin(); it != (*sit).newlinks.end(); ++it){
+				if (std::find(processed.begin(), processed.end(), it) == processed.end()){
+					if ((*sit).words[(*it).from].type == 1 && (*sit).words[(*it).to].type == 2){
+						for (std::vector<struct link>::iterator nit = (*sit).newlinks.begin(); nit != (*sit).newlinks.end(); ++nit){
+							if (nit != it && std::find(processed.begin(), processed.end(), nit) == processed.end()){
+								if ((*it).from == (*nit).from && (*sit).words[(*nit).to].type == 2){
+									processed.emplace_back(nit);
+									temptriple.sbj = (*it).to;
+									temptriple.ver = (*it).from;
+									temptriple.obj = (*nit).to;
+									(*sit).triples.emplace_back(temptriple);
+								}
+								else if ((*it).from == (*nit).to && (*sit).words[(*nit).from].type == 2){
+									processed.emplace_back(nit);
+									temptriple.sbj = (*it).to;
+									temptriple.ver = (*it).from;
+									temptriple.obj = (*nit).from;
+									(*sit).triples.emplace_back(temptriple);
+								}
 							}
 						}
 					}
-				}
-				else if ((*sit).words[(*it).to].type == 1 && (*sit).words[(*it).from].type == 2){
-					for (std::vector<struct link>::iterator nit = (*sit).newlinks.begin(); nit != (*sit).newlinks.end(); ++nit){
-						if (nit != it && std::find(processed.begin(), processed.end(), nit) == processed.end()){
-							if ((*it).to == (*nit).from && (*sit).words[(*nit).to].type == 2){
-								processed.emplace_back(nit);
-								temptriple.sbj = (*it).from;
-								temptriple.ver = (*it).to;
-								temptriple.obj = (*nit).to;
-								(*sit).triples.emplace_back(temptriple);
-							}
-							else if ((*it).to == (*nit).to && (*sit).words[(*nit).from].type == 2){
-								processed.emplace_back(nit);
-								temptriple.sbj = (*it).from;
-								temptriple.ver = (*it).to;
-								temptriple.obj = (*nit).to;
-								(*sit).triples.emplace_back(temptriple);
+					else if ((*sit).words[(*it).to].type == 1 && (*sit).words[(*it).from].type == 2){
+						for (std::vector<struct link>::iterator nit = (*sit).newlinks.begin(); nit != (*sit).newlinks.end(); ++nit){
+							if (nit != it && std::find(processed.begin(), processed.end(), nit) == processed.end()){
+								if ((*it).to == (*nit).from && (*sit).words[(*nit).to].type == 2){
+									processed.emplace_back(nit);
+									temptriple.sbj = (*it).from;
+									temptriple.ver = (*it).to;
+									temptriple.obj = (*nit).to;
+									(*sit).triples.emplace_back(temptriple);
+								}
+								else if ((*it).to == (*nit).to && (*sit).words[(*nit).from].type == 2){
+									processed.emplace_back(nit);
+									temptriple.sbj = (*it).from;
+									temptriple.ver = (*it).to;
+									temptriple.obj = (*nit).to;
+									(*sit).triples.emplace_back(temptriple);
+								}
 							}
 						}
 					}
 				}
 			}
-		}
 
 	}
 	foundtriples = true;
@@ -283,16 +339,16 @@ void DrInventorFindTriples::WriteTriplesToCSVFile(const char *file){
 	if (out){
 		for (std::vector<struct sentence>::iterator sit = sentences.begin(); sit != sentences.end(); ++sit){
 			for (std::vector<struct triple>::iterator it = (*sit).triples.begin(); it != (*sit).triples.end(); ++it){
-				if ((*it).sbj == -1) fprintf(out, "\"%s\",\"%%%%-1%%%%\",\"%s\"\n", (*sit).words[(*it).ver].st.c_str(), (*sit).words[(*it).obj].st.c_str());
-				else if ((*it).obj == -1) fprintf(out, "\"%s\",\"%s\",\"%%%%-1%%%%\"\n", (*sit).words[(*it).ver].st.c_str(), (*sit).words[(*it).sbj].st.c_str());
-				else fprintf(out, "\"%s\",\"%s\",\"%s\"\n", (*sit).words[(*it).ver].st.c_str(), (*sit).words[(*it).sbj].st.c_str(), (*sit).words[(*it).obj].st.c_str());
+				if ((*it).sbj == -1) fprintf_s(out, "\"%d\",\"%s\",\"%%%%-1%%%%\",\"%s\"\n", sit - sentences.begin(),(*sit).words[(*it).ver].st.c_str(), (*sit).words[(*it).obj].st.c_str());
+				else if ((*it).obj == -1) fprintf_s(out, "\"%d\",\"%s\",\"%s\",\"%%%%-1%%%%\"\n", sit - sentences.begin(),(*sit).words[(*it).ver].st.c_str(), (*sit).words[(*it).sbj].st.c_str());
+				else fprintf_s(out, "\"%d\",\"%s\",\"%s\",\"%s\"\n", sit-sentences.begin(),(*sit).words[(*it).ver].st.c_str(), (*sit).words[(*it).sbj].st.c_str(), (*sit).words[(*it).obj].st.c_str());
 			}
 		}
 		fclose(out);
 	}
 }
 
-void DrInventorFindTriples::MakeNewLinks(void){
+void DrInventorFindTriples::MakeNewLinks(bool tc){
 	/*
 	Firstly all nodes that are not nouns or verbs are discarded
 	Then some verb chains are combined
@@ -301,10 +357,12 @@ void DrInventorFindTriples::MakeNewLinks(void){
 		for (unsigned int i = 0; i < sentences.size(); ++i)
 			discardstuff(i);
 		graphsmade = true;
+		if (tc)
+			PrintInbetweenGraphs();
 		combineVC();
 	}
 	else
-		printf("Tag Words failed");
+		printf_s("Tag Words failed");
 }
 
 void DrInventorFindTriples::combineVC(void){
@@ -374,8 +432,10 @@ bool DrInventorFindTriples::tagwords(void){
 	//Tag the nouns and verbs from the tknfile. If neither noun nor verb, that word will be discarded later
 	std::ifstream toread;
 	toread.open(tokenfile);
-	if (!toread.is_open())
+	if (!toread.is_open()){
+		printf_s("Token File failed to open\n%s\n", tokenfile.c_str());
 		return false;
+	}
 	std::string leftover;
 	getline(toread, leftover);
 	while (getline(toread, leftover)){
@@ -387,7 +447,7 @@ bool DrInventorFindTriples::tagwords(void){
 			//We only care about the first and last columns
 			switch (i){
 			case 0:
-				sscanf(temp.c_str(), "\"%d\"", &token);
+				sscanf_s(temp.c_str(), "\"%d\"", &token);
 				break;
 			case 1:
 				break;
@@ -462,10 +522,10 @@ int DrInventorFindTriples::processline(std::string which){
 		if (i != 7) leftover = leftover.substr(leftover.find('\t') + 1);
 		switch (i){
 		case 0:
-			sscanf(temp.c_str(), "\"%d\"", &sID);
+			sscanf_s(temp.c_str(), "\"%d\"", &sID);
 			break;
 		case 1:
-			sscanf(temp.c_str(), "\"%d\"", &FromID);
+			sscanf_s(temp.c_str(), "\"%d\"", &FromID);
 			break;
 		case 2:
 			//FromWord = temp.substr(1, temp.length() - 2);
@@ -475,7 +535,7 @@ int DrInventorFindTriples::processline(std::string which){
 			FromWord = temp.substr(1, temp.length() - 2);
 			break;
 		case 4:
-			sscanf(temp.c_str(), "\"%d\"", &ToID);
+			sscanf_s(temp.c_str(), "\"%d\"", &ToID);
 			break;
 		case 5:
 			//ToWord = temp.substr(1, temp.length() - 2);

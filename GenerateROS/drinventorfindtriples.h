@@ -3,15 +3,27 @@
 #include <fstream>
 #include <algorithm>
 
+#include "commonstructs.h"
+
+#if !(defined(WIN32) || defined(_WIN32) || defined(__WIN32) && !defined(__CYGWIN__))
+#define stricmp strcasecmp
+#define printf_s printf
+#define fprintf_s fprintf
+#define sprintf_s sprintf
+#define sscanf_s sscanf
+#endif
+
 class DrInventorFindTriples{
 public:
 	DrInventorFindTriples(const char *, const char *);
 	~DrInventorFindTriples();
 	bool PrintInbetweenGraphs(void);
-	void MakeNewLinks(void);
+	void MakeNewLinks(bool tc=false);
 	void WriteTriplesToCSVFile(const char *file);
-	void GiveTriples(std::vector<std::string> *, std::vector<std::string> *, std::vector<std::string> *);
+	//void GiveTriples(std::vector<std::string> *, std::vector<std::string> *, std::vector<std::string> *, std::vector<long> *);
+	void MakeTripleSent(void);
 	bool isopen(void);
+	std::vector<struct triplesent> triplesent;
 private:
 	bool fisopen;
 	struct link{
@@ -31,7 +43,7 @@ private:
 	};
 
 	struct sentence{
-		int id;
+		long id;
 		std::vector<struct link> links;
 		std::vector<struct word> words;
 		std::vector<struct link> newlinks;
@@ -42,7 +54,7 @@ private:
 	std::string filename, tokenfile;
 	bool graphsmade, foundtriples, blockprint;
 
-	void FindTriples(void);
+	void FindTriples(bool tc=false);
 	int processline(std::string);
 	std::vector<int> containedin(int bit, int sent);
 	void discardstuff(int sent);
