@@ -38,6 +38,10 @@ private:
 		int type; //0=discard, 1=verb, 2=noun
 	};
 
+	struct stringpair{
+		std::string st1, st2;
+	};
+
 	struct triple{
 		int sbj, obj, ver;
 	};
@@ -51,9 +55,11 @@ private:
 	};
 	bool tagwords(void);
 	std::vector<struct sentence> sentences;
+	std::vector<struct stringpair> appos;
 	std::string filename, tokenfile;
 	bool graphsmade, foundtriples, blockprint;
-
+	
+	bool findappo(std::vector<struct sentence>::iterator sit, unsigned int id);
 	void FindTriples(bool tc=false);
 	int processline(std::string);
 	std::vector<int> containedin(int bit, int sent);

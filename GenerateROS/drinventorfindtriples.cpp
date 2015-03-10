@@ -46,6 +46,41 @@ void DrInventorFindTriples::MakeTripleSent(void){
 			triplesent.emplace_back(temp);
 		}
 	}
+	//Make APPO substitutions
+	for (std::vector<struct stringpair>::iterator it = appos.begin(); it != appos.end(); ++it){
+		int count[2] = { 0, 0 };
+		
+		//First find most common
+		for (std::vector<struct triplesent>::iterator tripit = triplesent.begin(); tripit != triplesent.end(); ++tripit){
+			if ((*tripit).sbj == (*it).st1)
+				++count[0];
+			else if ((*tripit).sbj == (*it).st2)
+				++count[1];
+			if ((*tripit).obj == (*it).st1)
+				++count[0];
+			else if ((*tripit).obj == (*it).st2)
+				++count[1];
+		}
+		//Then replace
+		if (count[0] > count[1]){
+			for (std::vector<struct triplesent>::iterator tripit = triplesent.begin(); tripit != triplesent.end(); ++tripit){
+				if ((*tripit).sbj == (*it).st2){
+					(*tripit).sbj = (*it).st1;
+				}
+				if ((*tripit).obj == (*it).st2){
+					(*tripit).obj = (*it).st1;
+				}
+			}
+		}
+		else{
+			for (std::vector<struct triplesent>::iterator tripit = triplesent.begin(); tripit != triplesent.end(); ++tripit){
+				if ((*tripit).sbj == (*it).st1)
+					(*tripit).sbj = (*it).st2;
+				if ((*tripit).obj == (*it).st1)
+					(*tripit).obj = (*it).st2;
+			}
+		}
+	}
 }
 
 
@@ -175,13 +210,22 @@ void DrInventorFindTriples::FindTriples(bool tc){
 					}
 					//If no luck, try finding an adjacent noun anyway
 					if (temptriple.obj == -1){
+						std::vector<struct link>::iterator foundoption = (*sit).newlinks.end();
 						for (std::vector<struct link>::iterator nit = (*sit).newlinks.begin(); nit != (*sit).newlinks.end(); ++nit){
-							if (nit != it && std::find(processed.begin(), processed.end(), nit) == processed.end() && (*it).from == (*nit).from && (*sit).words[(*nit).to].type == 2){
-								processed.emplace_back(nit);
-								temptriple.obj = (*nit).to;
-								break;
+							if (nit != it && std::find(processed.begin(), processed.end(), nit) == processed.end() && (*nit).relat != "SBJ" && (*it).from == (*nit).from && (*sit).words[(*nit).to].type == 2){
+								//If this link has not yet been used, use it now
+								if (std::find(processed.begin(), processed.end(), nit) == processed.end()){
+									processed.emplace_back(nit);
+									temptriple.obj = (*nit).to;
+									break;
+								}
+								else if (foundoption == (*sit).newlinks.end())
+									foundoption = nit;//If the link has been used before, keep it as an option, just in case
 							}
 						}
+						//If we found a previously used option for a link but still no complete triple, use it
+						if (temptriple.obj == -1 && foundoption != (*sit).newlinks.end())
+							temptriple.obj = (*foundoption).to;
 					}
 					//Still if no luck, maybe join two verbs to find an object?
 					if (temptriple.obj == -1){
@@ -218,6 +262,8 @@ void DrInventorFindTriples::FindTriples(bool tc){
 							}
 						}
 					}
+					findappo(sit, temptriple.sbj);
+					findappo(sit, temptriple.obj);
 					(*sit).triples.emplace_back(temptriple);
 				}
 				else if ((*sit).words[(*it).from].type == 1 && (*it).relat == "OBJ"){
@@ -236,13 +282,21 @@ void DrInventorFindTriples::FindTriples(bool tc){
 					}
 					//If no luck, try finding an adjacent noun anyway
 					if (temptriple.sbj == -1){
+						std::vector<struct link>::iterator foundoption = (*sit).newlinks.end();
 						for (std::vector<struct link>::iterator nit = (*sit).newlinks.begin(); nit != (*sit).newlinks.end(); ++nit){
-							if (nit != it && std::find(processed.begin(), processed.end(), nit) == processed.end() && (*it).from == (*nit).from && (*sit).words[(*nit).to].type == 2){
-								processed.emplace_back(nit);
-								temptriple.sbj = (*nit).to;
-								break;
+							if (nit != it && (*nit).relat != "OBJ" && (*it).from == (*nit).from && (*sit).words[(*nit).to].type == 2){
+								if (std::find(processed.begin(), processed.end(), nit) == processed.end()){
+									processed.emplace_back(nit);
+									temptriple.sbj = (*nit).to;
+									break;
+								}
+								else if (foundoption == (*sit).newlinks.end())
+									foundoption = nit;
 							}
 						}
+						if (temptriple.sbj == -1 && foundoption != (*sit).newlinks.end())
+							temptriple.sbj = (*foundoption).to;
+
 					}
 					//If still no luck, check if there is an incoming NOUN node to the verb
 					if (temptriple.sbj == -1){
@@ -276,11 +330,13 @@ void DrInventorFindTriples::FindTriples(bool tc){
 							}
 						}
 					}
+					findappo(sit, temptriple.sbj);
+					findappo(sit, temptriple.obj);
 					(*sit).triples.emplace_back(temptriple);
 				}
 			}
 		}
-		//Having found and dealt with all Sbj and Obj links. If any verbs have two adjacent nouns, add them as a triple
+		//Having found and dealt with all Sbj and Obj links. If any verbs have two leftover adjacent nouns, add them as a triple
 			for (std::vector<struct link>::iterator it = (*sit).newlinks.begin(); it != (*sit).newlinks.end(); ++it){
 				if (std::find(processed.begin(), processed.end(), it) == processed.end()){
 					if ((*sit).words[(*it).from].type == 1 && (*sit).words[(*it).to].type == 2){
@@ -330,8 +386,23 @@ void DrInventorFindTriples::FindTriples(bool tc){
 	foundtriples = true;
 }
 
+bool DrInventorFindTriples::findappo(std::vector<struct sentence>::iterator sit, unsigned int id){//Find type APPO joining nouns, i.e. could be replacement
+	if (id == -1)
+		return false;
+	for (std::vector<struct link>::iterator it = (*sit).newlinks.begin(); it != (*sit).newlinks.end(); ++it){
+		if ((*it).from == id && (*it).relat == "APPO" && (*sit).words[(*it).to].type==2){
+			struct stringpair temp;
+			temp.st1 = (*sit).words[(*it).from].st;
+			temp.st2 = (*sit).words[(*it).to].st;
+			appos.emplace_back(temp);
+			return true;
+		}
+	}
+	return false;
+}
+
 void DrInventorFindTriples::WriteTriplesToCSVFile(const char *file){
-	//Not used, outputs the triples to a CSV file
+	//Not used anymore, outputs the triples to a CSV file
 	if (!foundtriples)
 		FindTriples();
 	FILE *out;

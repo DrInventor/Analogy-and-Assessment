@@ -274,7 +274,7 @@ bool parsesettings(struct settings *aset){
 		aset->store = buf;
 	}
 	size_t found;
-	//Ensure /r has not been left in string (Windows -> Linux settings)
+	//Ensure \r has not been left in string (Windows -> Linux settings)
 	if ((found = aset->neo4j.find('\r')) != std::string::npos)
 		aset->neo4j = aset->neo4j.substr(0, found);
 	if ((found = aset->dbfil.find('\r')) != std::string::npos)

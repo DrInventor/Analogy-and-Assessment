@@ -179,8 +179,16 @@ bool Neo4jInteract::GVtoNeo4j(const char *filename, long graphid){
 	size_t found;
 	//Extract the nodes and links from the GV into vectors
 	while (getline(toread, temp)){
+		//Remove all tab characters, then remove all whitespace from the start of the line
 		replaceinstring(temp, "\t", "");
-		replaceinstring(temp, " ", "");
+		int count = 0;
+		for (unsigned int i = 0; i < temp.size(); ++i){
+			if (temp.at(i) != ' '){
+				count = i;
+				break;
+			}
+		}
+		temp = temp.substr(count);
 		if (temp.at(0) == 'c'){ //concept node
 			found = temp.find('[');
 			if (found != std::string::npos){
@@ -194,6 +202,8 @@ bool Neo4jInteract::GVtoNeo4j(const char *filename, long graphid){
 			}
 		}
 		else if (temp.at(0) == 'r'){ //relation node
+			//Remove all whitespace to ensure c->r->c structure is correct
+			replaceinstring(temp, " ", "");
 			found = temp.find('[');
 			if (found != std::string::npos){
 				leftover = temp.substr(1, found - 1);

@@ -21,7 +21,7 @@ public:
 	int lrgcomp, hghdeg, nouniquerelat, nocomponents;
 private:
 	long graphid;
-	typedef boost::adjacency_list <boost::vecS, boost::vecS, boost::undirectedS> Graph;
+	typedef boost::adjacency_list <boost::vecS, boost::vecS, boost::bidirectionalS> Graph;
 	Graph g;
 	std::vector<boost::graph_traits<Graph>::vertex_descriptor> vertex_conc, vertex_relat;
 	void HighestDegree(void);
