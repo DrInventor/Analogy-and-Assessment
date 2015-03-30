@@ -3,7 +3,7 @@ package ie.nuim.cs.dri.interactROS;
 public class ROSInteract {
 
     static {
-      System.loadLibrary("ConsoleApplication2");
+      System.loadLibrary("GenerateROS");
    }
  
    private native long GenerateROS(String filename, String longid);
