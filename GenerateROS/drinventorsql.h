@@ -22,14 +22,18 @@
 
 class DrInventorSqlitedb{
 public:
-	long InsertFile(const char *filename, const char *tknfilename, bool *isnew);
+	long InsertFile(const char *filename, const char *tknfilename, bool *isnew, bool createfolder);
 	DrInventorSqlitedb(const char *dir, const char *dbfile, const char which);
+	DrInventorSqlitedb(const char *dbfile);
+	long GetIDfromLongID(const char *longid);
 	bool isopen(void);
 	std::string GiveFileHome(void);
 	void UpdateNodeCount(long graphid, unsigned int relcount, unsigned int conceptcount);
 	void DumpDatabase(const char *);
 	void UpdateProperties(long graphid, int nounique, const char *highestdelist, int highestdeg, int largconn, int nocomponents, const char *mostcommonverbst);
 	~DrInventorSqlitedb();
+	int GetTotalNodeCount(const char *longid);
+	int GetTotalNodeCount(long neoid);
 private:
 	std::string filehome;
 	bool dbopen;

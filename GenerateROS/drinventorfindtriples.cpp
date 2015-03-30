@@ -3,29 +3,6 @@
 DrInventorFindTriples::~DrInventorFindTriples(){
 }
 
-/*void DrInventorFindTriples::GiveTriples(std::vector<std::string> *vb, std::vector<std::string> *sbj, std::vector<std::string> *obj, std::vector<long> *sentid){
-	/*
-	Outputs the triples to separate vectors, should be passed pointers.
-	The triples have to first be found, so if not done yet, do it now
-	*/
-	/*if (!foundtriples)
-		FindTriples();
-	for (std::vector<struct sentence>::iterator sit = sentences.begin(); sit != sentences.end(); ++sit){
-		for (std::vector<struct triple>::iterator it = (*sit).triples.begin(); it != (*sit).triples.end(); ++it){
-			vb->emplace_back((*sit).words[(*it).ver].st);
-			if ((*it).sbj == -1)
-				sbj->emplace_back("%%-1%%");
-			else
-				sbj->emplace_back((*sit).words[(*it).sbj].st);
-			if ((*it).obj == -1)
-				obj->emplace_back("%%-1%%");
-			else
-				obj->emplace_back((*sit).words[(*it).obj].st);
-			sentid->emplace_back((long)(*sit).id);
-		}
-	}
-}*/
-
 void DrInventorFindTriples::MakeTripleSent(void){
 	struct triplesent temp;
 	int count = 0;
@@ -96,6 +73,7 @@ DrInventorFindTriples::DrInventorFindTriples(const char *file, const char *tknfi
 	toread.open(file);
 	graphsmade = false;
 	blockprint = false;
+	tagwordsold = true;
 	if (!toread.is_open()){
 		fisopen = false;
 	}
@@ -115,6 +93,34 @@ DrInventorFindTriples::DrInventorFindTriples(const char *file, const char *tknfi
 				processline(temp);
 			toread.close();
 		}
+	}
+}
+
+DrInventorFindTriples::DrInventorFindTriples(const char *file){
+	/*
+	Constructor, stores the main file and checks if they it exists (and are readable)
+	If they exist, the main file is read in line by line and the first graphs (plain white) are made
+	This is done line by line (line (titles) 0 ignored)
+	*/
+	filename = file;
+	tokenfile = "";
+	std::ifstream toread;
+	toread.open(file);
+	graphsmade = false;
+	blockprint = false;
+	tagwordsold = false;
+	if (!toread.is_open()){
+		fisopen = false;
+	}
+	else{
+		fisopen = true;
+		std::string temp;
+		getline(toread, temp);
+		while (getline(toread, temp)){
+			if (!processlineofcombinedtable(temp))
+				fisopen = false;
+		}
+		toread.close();
 	}
 }
 
@@ -190,7 +196,6 @@ void DrInventorFindTriples::FindTriples(bool tc){
 	3) After all SBJ and OBJ links have been dealt with, find any verbs with two unprocessed links to nouns and make triples from these
 	*/
 	struct triple temptriple;
-	printf_s("searching for triples\n");
 	for (std::vector<struct sentence>::iterator sit = sentences.begin(); sit != sentences.end(); ++sit){
 		std::vector<std::vector<struct link>::iterator> processed;
 		for (std::vector<struct link>::iterator it = (*sit).newlinks.begin(); it != (*sit).newlinks.end(); ++it){
@@ -499,8 +504,44 @@ void DrInventorFindTriples::discardstuff(int sent){
 	}
 }
 
+bool DrInventorFindTriples::tagwordsnew(void){
+	std::string type;
+	for (std::vector<struct sentence>::iterator sentit = sentences.begin(); sentit != sentences.end(); ++sentit){
+		for (std::vector<struct word>::iterator wordit = (*sentit).words.begin(); wordit != (*sentit).words.end(); ++wordit){
+			type = (*wordit).pos;
+			if (type.size() >= 2 && type.at(0) == 'N' && type.at(1) == 'N'){
+				(*wordit).type = 2;
+			}
+			else if (type.size() >= 2 && type.at(0) == 'V' && type.at(1) == 'B')
+				(*wordit).type = 1;
+			else if (type.size() >= 3 && type.at(0) == 'P' && type.at(1) == 'R' && type.at(2) == 'P')
+				(*wordit).type = 2;
+			//New stuff
+			else if (type.size() >= 2 && type.at(0) == 'E' && type.at(1) == 'X')
+				(*wordit).type = 2;
+			else if (type.size() >= 2 && type.at(0) == 'T' && type.at(1) == 'O'){
+				//We sometimes want to keep the word "to", if for example it is part of an infinitive verb - it will be joined later in CombineVC
+				(*wordit).type = 0;
+				for (std::vector<struct link>::iterator linkit = (*sentit).links.begin(); linkit != (*sentit).links.end(); ++linkit){
+					if (wordit - (*sentit).words.begin() == (*linkit).to){
+						if ((*linkit).relat == "IM"){
+							(*wordit).type = 1;
+							break;
+						}
+					}
+				}
+			}
+			else
+				(*wordit).type = 0;
+		}
+	}
+	return true;
+}
+
 bool DrInventorFindTriples::tagwords(void){
 	//Tag the nouns and verbs from the tknfile. If neither noun nor verb, that word will be discarded later
+	if (!tagwordsold)
+		return tagwordsnew();
 	std::ifstream toread;
 	toread.open(tokenfile);
 	if (!toread.is_open()){
@@ -575,6 +616,72 @@ std::vector<int> DrInventorFindTriples::containedin(int bit, int sent){
 		}
 	}
 	return toreturn;
+}
+
+int DrInventorFindTriples::processlineofcombinedtable(std::string which){
+	/*
+	Extract the words from the a line in the file
+	Identifies the sentence id, the id of the word the link is from and the id of the word to. It also gets the actual words
+	The sentence id is checked for uniqueness and if new a new sentence is created in the struct array
+	Each word ID is then checked in sentences.words and again if new inserted
+	The link from : "wordfrom to wordto" is then saved in terms of array positions
+	This reads from combined tables that have the POS tags included
+	*/
+	int sID, FromID, ToID;
+	std::string FromWord, ToWord, Relation, FromPOS, ToPOS, temp;
+	std::string leftover = which;
+	std::vector<std::string> splits = splitbydelimiter(which, "\t", true);
+	if (splits.size() != 10)
+		return 0;
+	sID = atoi(splits[0].c_str());
+	if (splits[1].find('_') != std::string::npos)
+		FromID = atoi(splits[1].substr(splits[1].find('_') + 1).c_str());
+	else
+		FromID = atoi(splits[1].c_str());
+	FromWord = splits[3];
+	FromPOS = splits[4];
+	if (splits[5].find('_') != std::string::npos)
+		ToID = atoi(splits[5].substr(splits[5].find('_') + 1).c_str());
+	else
+		ToID = atoi(splits[5].c_str());
+	ToWord = splits[7];
+	ToPOS = splits[8];
+	Relation = splits[9];
+	std::vector<struct sentence>::iterator sentit;
+	sentit = std::find_if(sentences.begin(), sentences.end(), find_sID(sID));
+	if (sentit == sentences.end()){
+		struct sentence tempsent;
+		tempsent.id = sID;
+		sentences.emplace_back(tempsent);
+		sentit = std::find_if(sentences.begin(), sentences.end(), find_sID(sID));
+	}
+	int whichword[2];
+	whichword[0] = find_word(FromID, (*sentit).words);
+	if (whichword[0] == -1){
+		struct word tempword;
+		tempword.id = FromID;
+		tempword.st = FromWord;
+		tempword.pos = FromPOS;
+		whichword[0] = ((*sentit).words.size());
+		(*sentit).words.emplace_back(tempword);
+	}
+	whichword[1] = find_word(ToID, (*sentit).words);
+	if (whichword[1] == -1){
+		struct word tempword;
+		tempword.id = ToID;
+		tempword.st = ToWord;
+		tempword.st = ToPOS;
+		whichword[1] = ((*sentit).words.size());
+		(*sentit).words.emplace_back(tempword);
+	}
+	struct link templink;
+	templink.from = whichword[0];
+	templink.to = whichword[1];
+	templink.relat = Relation;
+	templink.checked = false;
+	(*sentit).links.emplace_back(templink);
+
+	return 1;
 }
 
 int DrInventorFindTriples::processline(std::string which){

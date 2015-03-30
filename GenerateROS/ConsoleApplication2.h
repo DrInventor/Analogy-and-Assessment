@@ -1,3 +1,4 @@
+#pragma once
 #include <stdio.h>
 #include <tinydir.h>
 
@@ -7,6 +8,7 @@
 #include "drinventorsql.h"
 #include "rosfromtriples.h"
 #include "drinventorfindtriples.h"
+#include "graphproperties.h"
 //#include "javawrappers.h"
 
 //Make sure correct folder slash is used in Linux or Windows (and some other function changes)
@@ -21,21 +23,23 @@ static const char slash = '/';
 #define sscanf_s sscanf
 #endif
 
-std::vector<std::string> splitbydelimiter(std::string tosplit, std::string delim, bool usequotes = false);
-void replaceinstring(std::string &toedit, const char *rpl, const char *with);
 //bool libcurlSaveFile(const wchar_t *url, const wchar_t *filename);
 //std::string computeMD5(const char *filename);
 //int DatabasetoCSV(const char *);
 
 struct settings{
-	std::string neo4j, store, dbfil, gravz;
+	std::string neo4j, store, dbfil, gravz, neouser, neopass;
 
 	settings(void){
-		neo4j = store = dbfil = gravz = "";
+		neo4j = neouser = neopass = store = dbfil = gravz = "";
 	};
 };
 
 bool parsesettings(struct settings *aset);
-int ProcessGraph(const char *, DrInventorSqlitedb *sqlitedb, const char *, const char *, bool tc=false);
-int ProcessAllGraphs(DrInventorSqlitedb *sqlitedb, const char *graphviz, const char *neo4jlo);
+int ProcessGraph(const char *, DrInventorSqlitedb *sqlitedb, const char *gvloc, Neo4jInteract *neo4db, bool  dogv, std::string tokenfile="", bool oldtkn=false, bool tc=false);
+long ProcessGraphWrap(const char *argument, const char *id);
+int ProcessAllGraphs(DrInventorSqlitedb *sqlitedb, const char *graphviz, const char *neo4jlo, bool dogv, const char *neopass, const char *neouser);
 int KeepSentences(int argc, char** argv, bool range=true);
+
+void TestingStuff(struct settings *set);
+//void GraphTesting(char **argv);

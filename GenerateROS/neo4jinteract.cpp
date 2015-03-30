@@ -1,8 +1,184 @@
 #include "neo4jinteract.h"
 
+void Neo4jInteract::BeginBatchOperations(int howmuch){
+	//Needs to be called before adding any nodes or links to the temporary lists. This ensures enough memory is allocated.
+	anode.resize(howmuch);
+	anodenest.resize(howmuch);
+	nodelabels.resize(howmuch);
+	fulllist = new rapidjson::Document();
+	fulllinks = new rapidjson::Document();
+	fulllist->SetArray();
+	fulllinks->SetArray();
+}
+
+void Neo4jInteract::EndBatchOperations(void){
+	//This is called after ExecuteLinkList, ensure ExecuteLinkList is called AFTER ExecuteNodeList
+	//Frees all temporary memory needed for building the JSON file to send to Neo4j REST
+	delete fulllist;
+	delete fulllinks;
+	anode.clear();
+	anodenest.clear();
+	nodelabels.clear();
+	std::vector<rapidjson::Document>().swap(anode);
+	std::vector<rapidjson::Document>().swap(anodenest);
+	std::vector<rapidjson::Document>().swap(nodelabels);
+
+}
+
+bool Neo4jInteract::ExecuteLinkList(void){
+	//Actually add all the links between nodes in one query to the database
+	if (!curlok){
+		EndBatchOperations();
+		return false;
+	}
+	struct MemoryStruct chunk;
+
+	rapidjson::StringBuffer strbuf;
+	rapidjson::Writer<rapidjson::StringBuffer> writer(strbuf);
+	fulllinks->Accept(writer);
+
+	CURL *curl;
+	CURLcode res;
+	curl = curl_easy_init();
+	if (!curl){
+		EndBatchOperations();
+		return false;
+	}
+	struct curl_slist *headers = NULL;
+	headers = curl_slist_append(headers, "Accept: application/json");
+	headers = curl_slist_append(headers, "Content-Type: application/json");
+	headers = curl_slist_append(headers, "charsets: utf-8");
+	headers = curl_slist_append(headers, authenttoken.c_str());
+	std::stringstream neo4jurl;
+	neo4jurl << neo4jlocation << "db/data/batch";
+	curl_easy_setopt(curl, CURLOPT_URL, neo4jurl.str().c_str());
+	curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "POST");
+	curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+	curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteMemoryCallback);
+	curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void *)&chunk);
+
+	curl_easy_setopt(curl, CURLOPT_POSTFIELDS, strbuf.GetString());
+	res = curl_easy_perform(curl);
+	long http_code = 0;
+	curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
+	if (res != CURLE_OK){
+		printf_s("curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
+		curl_easy_cleanup(curl);
+		free(chunk.memory);
+		EndBatchOperations();
+		return false;
+	}
+	curl_easy_cleanup(curl);
+	free(chunk.memory);
+	EndBatchOperations();
+	return true;
+
+}
+
+std::vector<long> Neo4jInteract::ExecuteNodeList(void){
+	//Actually add all the nodes in the temporary list
+	std::vector<long> toreturn;
+	if (!curlok)
+		return toreturn;
+	rapidjson::StringBuffer strbuf;
+	rapidjson::Writer<rapidjson::StringBuffer> writer(strbuf);
+	fulllist->Accept(writer);
+	struct MemoryStruct chunk;
+	CURL *curl;
+	CURLcode res;
+	curl = curl_easy_init();
+	if (curl){
+		struct curl_slist *headers = NULL;
+		headers = curl_slist_append(headers, "Accept: application/json");
+		headers = curl_slist_append(headers, "Content-Type: application/json");
+		headers = curl_slist_append(headers, "charsets: utf-8");
+		headers = curl_slist_append(headers, authenttoken.c_str());
+		std::stringstream neo4jurl;
+		neo4jurl << neo4jlocation << "db/data/batch";
+		curl_easy_setopt(curl, CURLOPT_URL, neo4jurl.str().c_str());
+		curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "POST");
+		curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+		curl_easy_setopt(curl, CURLOPT_POSTFIELDS, strbuf.GetString());
+		curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteMemoryCallback);
+		curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void *)&chunk);
+		res = curl_easy_perform(curl);
+		long http_code = 0;
+		curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
+		if (res != CURLE_OK){
+			printf_s("curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
+			curl_easy_cleanup(curl);
+			free(chunk.memory);
+			return toreturn;
+		}
+		toreturn.resize(anode.size());
+		rapidjson::Document ret;
+		ret.Parse(chunk.memory);
+		if (ret.IsArray()){
+			for (unsigned int i = 0; i < ret.Size(); i++){
+				if (ret[i].IsObject() && ret[i].HasMember("id")){
+					int which = ret[i]["id"].GetInt64();
+					if (ret[i]["body"].HasMember("metadata") && ret[i]["body"]["metadata"].IsObject()){
+						rapidjson::StringBuffer sb;
+						rapidjson::Writer<rapidjson::StringBuffer> writer(sb);
+						ret[i]["body"]["metadata"].Accept(writer);
+						rapidjson::Document metadata;
+						metadata.Parse(sb.GetString());
+						if (metadata.HasMember("id")){
+							if (metadata["id"].IsInt64()){
+								toreturn[which] = metadata["id"].GetInt64();
+							}
+						}
+					}
+				}
+			}
+		}
+		free(chunk.memory);
+	}
+	return toreturn;
+}
+
+bool Neo4jInteract::AddNodetoList(int which, const char *word, int type, const char *gvlab, long graphid, long sentid){
+	//This adds a node to the temporary list of nodes that are being prepared to send as one query to the Neo4j database
+	if (anode.size() == 0)
+		return false;
+	anode[which].SetObject();
+	rapidjson::Document::AllocatorType&allocator = anode[which].GetAllocator();
+	rapidjson::Value valObjectString(rapidjson::kStringType);
+	valObjectString.SetString(word, allocator);
+	anode[which].AddMember("method", "POST", allocator);
+	anode[which].AddMember("id", which, allocator);
+	anode[which].AddMember("to", "/node", allocator);
+
+	anodenest[which].SetObject();
+	rapidjson::Document::AllocatorType&nestallocator = anodenest[which].GetAllocator();
+	anodenest[which].AddMember("Word", valObjectString, nestallocator);
+	anodenest[which].AddMember("Graphid", graphid, nestallocator);
+	valObjectString.SetString(gvlab, nestallocator);
+	anodenest[which].AddMember("GVLabel", valObjectString, nestallocator);
+	if (type == 2){
+		anodenest[which].AddMember("SentID", sentid, nestallocator);
+	}
+	anode[which].AddMember("body", anodenest[which], allocator);
+	rapidjson::Document::AllocatorType&fullallocator = fulllist->GetAllocator();
+	fulllist->PushBack(anode[which], fullallocator);
+	nodelabels[which].SetObject();
+	rapidjson::Document::AllocatorType&eallocator = nodelabels[which].GetAllocator();
+	nodelabels[which].AddMember("method", "POST", eallocator);
+	char buf[128];
+	sprintf_s(buf, "{%d}/labels", which);
+	valObjectString.SetString(buf, eallocator);
+	nodelabels[which].AddMember("to", valObjectString, eallocator);
+	if (type == 1)
+		nodelabels[which].AddMember("body", "Noun", eallocator);
+	else if (type == 2)
+		nodelabels[which].AddMember("body", "Verb", eallocator);
+	fulllist->PushBack(nodelabels[which], fullallocator);
+	return true;
+}
+
 bool Neo4jInteract::AddNodetoNeo4j(const char *word, int type, const char *gvlab, long *nodeid, long graphid, long sentid){
 	/*
-	Adds a node to the Neo4j database. Uses rapidjson to form the json expression (could easily form without rapidjson but used anyway)
+	Adds a single node to the Neo4j database. Uses rapidjson to form the json expression (could easily form without rapidjson but used anyway)
 	Sends information through libcurl
 	Neo4j database location needed, read from settings file
 	After inserting the node, the returned response will be in json format and this is parsed by rapidjson (needed!)
@@ -41,6 +217,7 @@ bool Neo4jInteract::AddNodetoNeo4j(const char *word, int type, const char *gvlab
 		headers = curl_slist_append(headers, "Accept: application/json");
 		headers = curl_slist_append(headers, "Content-Type: application/json");
 		headers = curl_slist_append(headers, "charsets: utf-8");
+		headers = curl_slist_append(headers, authenttoken.c_str());
 		std::stringstream neo4jurl;
 		neo4jurl << neo4jlocation << "db/data/node";
 		curl_easy_setopt(curl, CURLOPT_URL, neo4jurl.str().c_str());
@@ -113,11 +290,11 @@ bool Neo4jInteract::AddNodetoNeo4j(const char *word, int type, const char *gvlab
 	}
 }
 
-Neo4jInteract::Neo4jInteract(const char *location){
+Neo4jInteract::Neo4jInteract(const char *location, const char *user, const char *password){
 	/*
 	Constructor
 	Tests if Curl can make any connection with the database
-	If it can't, all other database operations are done
+	If it can't, all other database operations can't be done
 	If the program requires Neo4j to continue, then check the Neo4jInteract.curlok variable and if false, exit (or destroy the current object and create a new one later)
 	*/
 	neo4jlocation = location;
@@ -141,15 +318,64 @@ Neo4jInteract::Neo4jInteract(const char *location){
 			//printf_s("curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
 			curlok = false;
 		}
-		curl_easy_cleanup(curl);
 		free(chunk.memory);
+	//	curl_easy_cleanup(curl);
 	}
-}
+	//Authentication
+	if (curlok){
+		/*CURL *curl;
+		curl = curl_easy_init();*/
+		struct MemoryStruct chunk;
+		std::string newurl = neo4jlocation + "user/" + user;
+		curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void *)&chunk);
+		struct curl_slist *headers = NULL;
+		headers = curl_slist_append(headers, "Accept: application/json");
+		headers = curl_slist_append(headers, "Content-Type: application/json");
+		headers = curl_slist_append(headers, "charsets: utf-8");
 
-void replaceinstring(std::string &toedit, const char *rpl, const char *with){
-	size_t found;
-	while ((found = toedit.find(rpl)) != std::string::npos){
-		toedit.replace(found, strlen(rpl), with);
+		if (strlen(user) > 0 && strlen(password) > 0){
+			std::stringstream auth;
+			auth << user << ":" << password;
+			std::string encode = base64_encode(auth.str().c_str(), auth.str().size());
+			auth.str("");
+			auth << "Authorization: Basic " << encode;
+			authenttoken = auth.str().c_str();
+			headers = curl_slist_append(headers, authenttoken.c_str());
+		}
+		else{
+			authenttoken = "";
+			newurl = neo4jlocation + "db/data/";
+		}
+		curl_easy_setopt(curl, CURLOPT_URL, newurl.c_str());
+		curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteMemoryCallback);
+		curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void *)&chunk);
+		curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "GET");
+		curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+		curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteMemoryCallback);
+		curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void *)&chunk);
+
+		long http_code = 0;
+		res = curl_easy_perform(curl);
+		curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
+		if (res != CURLE_OK){
+			//printf_s("curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
+			curlok = false;
+		}
+		rapidjson::Document d;
+		d.Parse(chunk.memory);
+		if (authenttoken != "" && d.HasMember("username") && strcmp(d["username"].GetString(), user) == 0 && d.HasMember("password_change_required")){
+			if (d["password_change_required"].GetBool()){
+				printf_s("Failed to connect to Neo4j database: Authentication error: Must change password\n");
+				curlok = false;
+			}
+		}
+		else if (authenttoken == "" && !d.HasMember("errors"));
+		else{
+			printf_s("Failed to connect to Neo4j database: Authentication error.\n");
+			curlok = false;
+		}
+		free(chunk.memory);
+		curl_easy_cleanup(curl);
 	}
 }
 
@@ -268,6 +494,106 @@ bool Neo4jInteract::GVtoNeo4j(const char *filename, long graphid){
 
 }
 
+bool Neo4jInteract::neo4cyphermultiple(std::vector<std::string> *commands, std::string *response){
+	//Sends a list of commands to the Neo4j database in one go
+	*response = "";
+	if (!curlok)
+		return false;
+	CURL *curl;
+	curl = curl_easy_init();
+	if (!curl)
+		return false;
+	CURLcode res;
+
+	rapidjson::Document d;
+	d.SetObject();
+	rapidjson::Document statements;
+	statements.SetArray();
+
+	std::vector<rapidjson::Document> astate;
+	astate.resize(commands->size());
+	for (unsigned int i = 0; i < astate.size(); ++i){
+		astate[i].SetObject();
+		rapidjson::Value valObjectString(rapidjson::kStringType);
+		valObjectString.SetString((commands->begin()+i)->c_str(), astate[i].GetAllocator());
+		astate[i].AddMember("statement", valObjectString, astate[i].GetAllocator());
+		statements.PushBack(astate[i], statements.GetAllocator());
+	}
+	d.AddMember("statements", statements, d.GetAllocator());
+	rapidjson::StringBuffer strbuf;
+	rapidjson::Writer<rapidjson::StringBuffer> writer(strbuf);
+	d.Accept(writer);
+	struct curl_slist *headers = NULL;
+	headers = curl_slist_append(headers, "Accept: application/json");
+	headers = curl_slist_append(headers, "Content-Type: application/json");
+	headers = curl_slist_append(headers, "charsets: utf-8");
+	headers = curl_slist_append(headers, authenttoken.c_str());
+	std::stringstream labelupdate;
+	labelupdate << neo4jlocation << "db/data/transaction/commit";
+	curl_easy_setopt(curl, CURLOPT_URL, labelupdate.str().c_str());
+	curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "POST");
+	curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+	curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteMemoryCallbackString);
+	curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void *)response);
+
+	curl_easy_setopt(curl, CURLOPT_POSTFIELDS, strbuf.GetString());
+	res = curl_easy_perform(curl);
+	long http_code = 0;
+	curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
+	if (res != CURLE_OK){
+		printf_s("curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
+		curl_easy_cleanup(curl);
+		return false;
+	}
+	curl_easy_cleanup(curl);
+	return true;
+}
+
+bool Neo4jInteract::neo4cypher(const char *command, std::string *response){
+	//To send a single query to the neo4j database
+	if (!curlok)
+		return false;
+	CURL *curl;
+	CURLcode res;
+	std::stringstream json;
+	json << "{ \"statements\" :[{ \"statement\" : \"" << command << "\"}]	}";
+	//struct MemoryStruct chunk;
+
+	rapidjson::Document d;
+	d.Parse(json.str().c_str());
+	rapidjson::StringBuffer strbuf;
+	rapidjson::Writer<rapidjson::StringBuffer> writer(strbuf);
+	d.Accept(writer);
+
+	curl = curl_easy_init();
+	if (!curl)
+		return false;
+	struct curl_slist *headers = NULL;
+	headers = curl_slist_append(headers, "Accept: application/json");
+	headers = curl_slist_append(headers, "Content-Type: application/json");
+	headers = curl_slist_append(headers, "charsets: utf-8");
+	headers = curl_slist_append(headers, authenttoken.c_str());
+	std::stringstream labelupdate;
+	labelupdate << neo4jlocation << "db/data/transaction/commit";
+	curl_easy_setopt(curl, CURLOPT_URL, labelupdate.str().c_str());
+	curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "POST");
+	curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+	curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteMemoryCallbackString);
+	curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void *)response);
+
+	curl_easy_setopt(curl, CURLOPT_POSTFIELDS, strbuf.GetString());
+	res = curl_easy_perform(curl);
+	long http_code = 0;
+	curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
+	if (res != CURLE_OK){
+		printf_s("curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
+		curl_easy_cleanup(curl);
+		return false;
+	}
+	curl_easy_cleanup(curl);
+	return true;
+}
+
 bool Neo4jInteract::neo4cypher(const char *command){
 	if (!curlok)
 		return false;
@@ -290,6 +616,7 @@ bool Neo4jInteract::neo4cypher(const char *command){
 	headers = curl_slist_append(headers, "Accept: application/json");
 	headers = curl_slist_append(headers, "Content-Type: application/json");
 	headers = curl_slist_append(headers, "charsets: utf-8");
+	headers = curl_slist_append(headers, authenttoken.c_str());
 	std::stringstream labelupdate;
 	labelupdate << neo4jlocation << "db/data/transaction/commit";
 	curl_easy_setopt(curl, CURLOPT_URL, labelupdate.str().c_str());
@@ -309,14 +636,41 @@ bool Neo4jInteract::neo4cypher(const char *command){
 		return false;
 	}
 	curl_easy_cleanup(curl);
-//	printf_s(chunk.memory);
 	free(chunk.memory);
+	return true;
+}
+
+bool Neo4jInteract::AddLinktoList(int type, long nodeid, long nodeto){
+	//Adds a link to the temporary list to prepare the REST api call to Neo4j
+	linklist.emplace_back();
+	linklistnest.emplace_back();
+	int which = linklist.size()-1;
+	linklist[which].SetObject();
+	linklistnest[which].SetObject();
+	rapidjson::Document::AllocatorType&allocator = linklist[which].GetAllocator();
+	rapidjson::Value valObjectString(rapidjson::kStringType);
+	rapidjson::Document::AllocatorType&nestallocator = linklistnest[which].GetAllocator();
+	char buf[128];
+	linklist[which].AddMember("method","POST", allocator);
+	sprintf_s(buf, "/node/%d/relationships", nodeid);
+	valObjectString.SetString(buf, allocator);
+	linklist[which].AddMember("to", valObjectString, allocator);
+	sprintf_s(buf, "/node/%d", nodeto);
+	valObjectString.SetString(buf, nestallocator);
+	linklistnest[which].AddMember("to", valObjectString, nestallocator);
+	if (type == 1)
+		linklistnest[which].AddMember("type", "sbj", nestallocator);
+	else
+		linklistnest[which].AddMember("type", "obj", nestallocator);
+	linklist[which].AddMember("body", linklistnest[which], allocator);
+	rapidjson::Document::AllocatorType&fullallocator = fulllinks->GetAllocator();
+	fulllinks->PushBack(linklist[which], fullallocator);
 	return true;
 }
 
 bool Neo4jInteract::MakeLink(int type, long nodeid, long nodeto){
 	/*
-	Insert a link into a Neo4j database. Type (subject or object), nodefrom and nodeto are needed
+	Inserts a single link into a Neo4j database. Type (subject or object), nodefrom and nodeto are needed
 	*/
 	if (!curlok)
 		return false;
@@ -347,6 +701,7 @@ bool Neo4jInteract::MakeLink(int type, long nodeid, long nodeto){
 	headers = curl_slist_append(headers, "Accept: application/json");
 	headers = curl_slist_append(headers, "Content-Type: application/json");
 	headers = curl_slist_append(headers, "charsets: utf-8");
+	headers = curl_slist_append(headers, authenttoken.c_str());
 	std::stringstream labelupdate;
 	labelupdate << neo4jlocation << "db/data/node/" << nodeid << "/relationships";
 	curl_easy_setopt(curl, CURLOPT_URL, labelupdate.str().c_str());

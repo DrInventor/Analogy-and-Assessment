@@ -17,16 +17,35 @@ int main(int argc, char** argv)
 	struct settings set;
 	parsesettings(&set);
 	curl_global_init(CURL_GLOBAL_ALL);
+	printf_s("GenerateROS Version 0.2.0\n");
 	if (argc > 1){
 		if (strcmp(argv[1], "-pg") == 0){
 			//Process file into Graph
-			if (argc < 3){
-				printf_s("Usage -pg \"filename\"\n");
+			if (argc < 4){
+				printf_s("Usage -pg \"filename\" \"UniqueID\"\n");
 				return 0;
 			}
 			else{
+				bool dogv = false;
+				if (argc > 4 && strcmp(argv[4], "-gv") == 0)
+					dogv = true;
 				DrInventorSqlitedb sqlitedb(set.store.c_str(), set.dbfil.c_str(), slash);
-				ProcessGraph(argv[2], &sqlitedb, set.gravz.c_str(), set.neo4j.c_str());
+				Neo4jInteract neo4db(set.neo4j.c_str(), set.neouser.c_str(), set.neopass.c_str());
+				ProcessGraph(argv[2], &sqlitedb, set.gravz.c_str(), &neo4db, dogv, argv[3], false);
+			}
+		}
+		else if (strcmp(argv[1], "-po") == 0){
+			if (argc < 4){
+				printf_s("Usage -po \"filename\" \"UniqueID\"\n");
+				return 0;
+			}
+			else{
+				bool dogv = false;
+				if (argc > 4 && strcmp(argv[4], "-gv") == 0)
+					dogv = true;
+				DrInventorSqlitedb sqlitedb(set.store.c_str(), set.dbfil.c_str(), slash);
+				Neo4jInteract neo4db(set.neo4j.c_str(), set.neouser.c_str(), set.neopass.c_str());
+				ProcessGraph(argv[2], &sqlitedb, set.gravz.c_str(), &neo4db, dogv, argv[3], true);
 			}
 		}
 		else if (strcmp(argv[1], "-dd") == 0){
@@ -42,8 +61,11 @@ int main(int argc, char** argv)
 		}
 		else if (strcmp(argv[1], "-af") == 0){
 			printf_s("processing all .csv files that have matching _tokenfile.csv\n");
+			bool dogv = false;
+			if (argc > 2 && strcmp(argv[2], "-gv") == 0)
+				dogv = true;
 			DrInventorSqlitedb sqlitedb(set.store.c_str(), set.dbfil.c_str(), slash);
-			ProcessAllGraphs(&sqlitedb, set.gravz.c_str(), set.neo4j.c_str());
+			ProcessAllGraphs(&sqlitedb, set.gravz.c_str(), set.neo4j.c_str(),dogv, set.neouser.c_str(), set.neopass.c_str());
 		}
 		else if (strcmp(argv[1], "-kr") == 0){
 			//Extract range of sentences from the csv file and output a new csv file
@@ -62,19 +84,52 @@ int main(int argc, char** argv)
 				return 0;
 			}
 			else{
-				Neo4jInteract neo4jinteract(set.neo4j.c_str());
+				Neo4jInteract neo4jinteract(set.neo4j.c_str(), set.neouser.c_str(), set.neopass.c_str());
 				neo4jinteract.GVtoNeo4j(argv[2], atoi(argv[3]));
 			}
 		}
 		else if (strcmp(argv[1], "-tc") == 0 && argc >=2){
-			DrInventorSqlitedb sqlitedb(set.store.c_str(), set.dbfil.c_str(), slash);
-			ProcessGraph(argv[2], &sqlitedb, set.gravz.c_str(), set.neo4j.c_str(),true);
+			/*DrInventorSqlitedb sqlitedb(set.store.c_str(), set.dbfil.c_str(), slash);
+			ProcessGraph(argv[2], &sqlitedb, set.gravz.c_str(), set.neo4j.c_str(),true);*/
+			TestingStuff(&set);
+		}
+		else if (strcmp(argv[1], "-cg") == 0 && argc >= 3){
+			//GraphTesting(argv);
 		}
 	}
 	else
 		printf_s("Need to use options -pg, -dd, gc");
-	//printf_s("\nGoodbye Cruel World\n");
 	return 0;
+}
+
+void TestingStuff(struct settings *set){
+/*	Neo4jInteract neodb(set->neo4j.c_str());
+	struct agraph thegraph = neodb.GetGraphbyID(1);
+	printf_s("%d %d %d \n", thegraph.concepts.size(), thegraph.relations.size(), thegraph.links.size());
+	for (unsigned int i = 0; i < thegraph.links.size(); ++i){
+		printf_s("%d %d %d\n", thegraph.links[i].sbj, thegraph.links[i].obj, thegraph.links[i].vb);
+	}
+	for (unsigned int i = 0; i < thegraph.concepts.size(); ++i){
+		printf_s("%s %d\n", thegraph.concepts[i].word.c_str(), thegraph.concepts[i].id);
+	}
+	for (unsigned int i = 0; i < thegraph.relations.size(); ++i){
+		printf_s("%s %d\n", thegraph.relations[i].word.c_str(), thegraph.relations[i].id);
+	}*/
+	DrInventorSqlitedb *db;
+	db = new DrInventorSqlitedb(set->dbfil.c_str());
+	int count = db->GetTotalNodeCount(6);
+	printf_s("AB : %d\n", count);
+	delete db;
+	GraphProperties gphprop(18, set->neo4j.c_str(), set->neouser.c_str(), set->neopass.c_str());
+	if (gphprop.is_open())
+		gphprop.ConvertGraphtoNodes();
+	/*std::vector<int> testing;
+	for (unsigned int i = 0; i < 20; ++i)
+		testing.emplace_back(i);
+	printf_s("FIND : %d\n", std::find(testing.begin(), testing.end(), 10)-testing.begin());*/
+	/*std::string response;
+	neodb.neo4cypher("Match n where n.Graphid=1 return id(n);", &response);
+	printf_s(response.c_str());*/
 }
 
 int KeepSentences(int argc, char** argv, bool range){
@@ -121,7 +176,7 @@ int KeepSentences(int argc, char** argv, bool range){
 	return 2;
 }
 
-int ProcessAllGraphs(DrInventorSqlitedb *sqlitedb, const char *graphviz, const char *neo4jlo){
+int ProcessAllGraphs(DrInventorSqlitedb *sqlitedb, const char *graphviz, const char *neo4jlo, bool dogv, const char *neouser, const char *neopass){
 	/*
 	Searches current directory for all .csv files
 	If the file ends in _tokenInfo_list.csv stored in different array
@@ -148,22 +203,76 @@ int ProcessAllGraphs(DrInventorSqlitedb *sqlitedb, const char *graphviz, const c
 	}
 
 	tinydir_close(&dir);
+	Neo4jInteract neo4db(neo4jlo, neouser, neopass);;
 	for (unsigned int i = 0; i < filenames.size(); ++i){
 		char buf2[2048];
 		strcpy(buf2, filenames[i].c_str());
 		buf2[strlen(buf2) - 4] = '\0';
 		strcat(buf2, "_tokenInfo_list.csv");
 		if (std::find(tokens.begin(), tokens.end(), buf2) != tokens.end()){
-			ProcessGraph(filenames[i].c_str(), sqlitedb, graphviz, neo4jlo);
+			ProcessGraph(filenames[i].c_str(), sqlitedb, graphviz, &neo4db, dogv, buf2, true);
 		}
 	}
 		
 	return 0;
 }
 
-int ProcessGraph(const char *argument, DrInventorSqlitedb *sqlitedb, const char *graphviz, const char *neo4jlo,  bool tc){
+long ProcessGraphWrap(const char *argument, const char *longid){
+	//Mostly the Same as ProcessGraph but tuned for the JavaWrapper arguments
+	if (strlen(argument) < 1)
+		return 0;
+	struct settings set;
+	parsesettings(&set);
+	curl_global_init(CURL_GLOBAL_ALL);
+	DrInventorSqlitedb sqlitedb(set.store.c_str(), set.dbfil.c_str(), slash);
+	Neo4jInteract neo4db(set.neo4j.c_str(), set.neouser.c_str(), set.neopass.c_str());
+	if (!neo4db.isopen()){
+		printf_s("\nNot making GV files and cannot access Neo4j database, nothing to do: Exiting\n");
+		return 0;
+	}
+	DrInventorFindTriples dotriple(argument);
+	if (!dotriple.isopen()){
+		printf_s("Error opening file %s", argument);
+		return 0;
+	}
+	dotriple.MakeNewLinks(false);
+	bool isnew;
+	long gid = sqlitedb.InsertFile(argument, longid, &isnew, false);
+	if (gid == -1){
+		printf_s("Error with inserting file to database\n");
+		return 0;
+	}
+	dotriple.MakeTripleSent();
+	if (neo4db.isopen() && !isnew){
+		std::stringstream cyphercmd;
+		cyphercmd << "MATCH (n) WHERE n.Graphid=" << gid << " OPTIONAL MATCH (n)-[r]-() DELETE n,r;";
+		neo4db.neo4cypher(cyphercmd.str().c_str());
+	}
+	ROSFromTriples doros(&dotriple.triplesent, gid);
+	doros.gvlocation = "";
+	doros.sqlitedb = &sqlitedb;
+	doros.neodb = &neo4db;
+	
+	doros.InserttoNeo4j();
+
+	GraphInterface testing(&doros.concepts, &doros.relations, &doros.links, gid);
+	std::stringstream highestdegstring, mostcommonverbstring;
+	for (unsigned int i = 0; i < testing.highestdegreestring.size(); ++i){
+		highestdegstring << "''" << testing.highestdegreestring[i] << "''";
+		if (i != testing.highestdegreestring.size() - 1)
+			highestdegstring << ";";
+	}
+	for (unsigned int i = 0; i < testing.mostcommonverb.size(); ++i){
+		mostcommonverbstring << "''" << testing.mostcommonverb[i] << "''";
+		if (i != testing.mostcommonverb.size() - 1)
+			mostcommonverbstring << ";";
+	}
+	sqlitedb.UpdateProperties(gid, testing.nouniquerelat, highestdegstring.str().c_str(), testing.hghdeg, testing.lrgcomp, testing.nocomponents, mostcommonverbstring.str().c_str());
+	return gid;
+}
+
+int ProcessGraph(const char *argument, DrInventorSqlitedb *sqlitedb, const char *graphviz, Neo4jInteract *neodb,  bool dogv, std::string longid, bool oldtkn, bool tc){
 	/*
-	Lots to do
 	Currently: It reads the file and creates the ExtractTriples object by passing the filename and tknfile - The initial graphs(plain white) are made
 	curl needs to be initialised for the later Neo4j insertions
 	It then calls the database function to open the sqlite database, arguments are 1) main directory to store all the files(subdirectories will be created). 2) location of sqlite database file
@@ -180,48 +289,60 @@ int ProcessGraph(const char *argument, DrInventorSqlitedb *sqlitedb, const char 
 	char buf[512];
 	strcpy(buf, argument);
 	printf_s("opening %s\n", buf);
-	char buf2[2048];
-	strcpy(buf2, buf);
-	buf2[strlen(buf2) - 4] = '\0';
-	strcat(buf2, "_tokenInfo_list.csv");
-	DrInventorFindTriples dotriple(buf, buf2);
-	if (!dotriple.isopen()){
+	char buf2[2048]; 
+	if (oldtkn){
+		strcpy(buf2, buf);
+		buf2[strlen(buf2) - 4] = '\0';
+		strcat(buf2, "_tokenInfo_list.csv");
+	}
+	if (!dogv && !neodb->isopen()){
+		printf_s("\nNot making GV files and cannot access Neo4j database, nothing to do: Exiting\n");
+		return 0;
+	}
+	DrInventorFindTriples *dotriple;
+	if (oldtkn)
+		dotriple = new DrInventorFindTriples(buf, buf2);
+	else
+		dotriple = new DrInventorFindTriples(buf);
+	if (!dotriple->isopen()){
 		printf_s("Error opening file %s", buf);
 		return 0;
 	}
-	dotriple.MakeNewLinks(tc);
+	dotriple->MakeNewLinks(tc);
 	buf[strlen(buf) - 4] = '\0';
 	bool isnew;
-	long gid = sqlitedb->InsertFile(buf, buf2, &isnew);
+	long gid = sqlitedb->InsertFile(buf, longid.c_str(), &isnew, dogv);
+
 	if (gid == -1){
 		printf_s("Error with inserting file to database\n");
+		delete dotriple;
 		return 0;
 	}
 	sprintf_s(buf2, "%s%ld%c%s.gv", sqlitedb->GiveFileHome().c_str(),gid,slash,buf);
-	std::vector<std::string> vb, sbj, obj;
-	std::vector<long> sentid;
-	//dotriple.GiveTriples(&vb, &sbj, &obj, &sentid);
-	dotriple.MakeTripleSent();
+	
+	dotriple->MakeTripleSent();
 	if (tc){
-		dotriple.PrintInbetweenGraphs();
-		dotriple.WriteTriplesToCSVFile("triplecsv.csv");
+		dotriple->PrintInbetweenGraphs();
+		dotriple->WriteTriplesToCSVFile("triplecsv.csv");
+		delete dotriple;
 		return 0;
 	}
-	Neo4jInteract neo4db(neo4jlo);
-	if (neo4db.isopen() && !isnew){
+	if (neodb->isopen() && !isnew){
 		std::stringstream cyphercmd;
 		cyphercmd << "MATCH (n) WHERE n.Graphid=" << gid << " OPTIONAL MATCH (n)-[r]-() DELETE n,r;";
-		neo4db.neo4cypher(cyphercmd.str().c_str());
+		neodb->neo4cypher(cyphercmd.str().c_str());
 	}
-	//ROSFromTriples doros(vb, sbj, obj, sentid, gid);
-	ROSFromTriples doros(&dotriple.triplesent, gid);
+	ROSFromTriples doros(&dotriple->triplesent, gid);
 	doros.gvlocation = graphviz;
 	doros.sqlitedb = sqlitedb;
-	doros.neodb = &neo4db;
+	doros.neodb = neodb;
 	std::stringstream writetodir;
 	writetodir << sqlitedb->GiveFileHome() << gid << slash;
 	printf_s("Graphid : %d\n", gid);
-	doros.PrintGVFile(buf2, true, neo4db.isopen(), writetodir.str().c_str());
+	if (dogv)
+		doros.PrintGVFile(buf2, true, neodb->isopen(), writetodir.str().c_str());
+	else
+		doros.InserttoNeo4j();
 	
 	GraphInterface testing(&doros.concepts, &doros.relations, &doros.links, gid);
 	std::stringstream highestdegstring, mostcommonverbstring;
@@ -236,7 +357,8 @@ int ProcessGraph(const char *argument, DrInventorSqlitedb *sqlitedb, const char 
 			mostcommonverbstring << ";";
 	}
 	sqlitedb->UpdateProperties(gid, testing.nouniquerelat, highestdegstring.str().c_str(), testing.hghdeg, testing.lrgcomp, testing.nocomponents, mostcommonverbstring.str().c_str());
-	return 0;
+	delete dotriple;
+	return gid;
 }
 
 bool parsesettings(struct settings *aset){
@@ -257,6 +379,10 @@ bool parsesettings(struct settings *aset){
 					aset->store = temp[0];
 				else if (temp[1] == "dbfil")
 					aset->dbfil = temp[0];
+				else if (temp[1] == "neouser")
+					aset->neouser = temp[0];
+				else if (temp[1] == "neopass")
+					aset->neopass = temp[0];
 			}
 		}
 		toread.close();
@@ -265,7 +391,7 @@ bool parsesettings(struct settings *aset){
 		aset->neo4j = "http://localhost:7474/";
 	if (aset->dbfil == ""){
 		char buf[128];
-		sprintf_s(buf, "results%cdata.db", slash);
+		sprintf_s(buf, "data.db", slash);
 		aset->dbfil = buf;
 	}
 	if (aset->store == ""){
@@ -288,11 +414,10 @@ bool parsesettings(struct settings *aset){
 
 
 //Some testing functions
-/*std::vector<std::string> splitbydelimiter(std::string tosplit, std::string delim, bool usequotes){
+std::vector<std::string> splitbydelimiter(std::string tosplit, std::string delim, bool usequotes){
 	std::string leftover = tosplit;
 	size_t found;
 	std::vector<std::string> toreturn;
-	printf_s("processing: %s\n", tosplit.c_str());
 	if (!usequotes){
 		while ((found = leftover.find(delim)) != std::string::npos){
 			toreturn.emplace_back(leftover.substr(0, found));
@@ -338,15 +463,19 @@ bool parsesettings(struct settings *aset){
 			}
 		}
 	}
-	if (leftover.size() > 0)
-		toreturn.emplace_back(leftover);
+	if (leftover.size() > 0){
+		if (!usequotes)
+			toreturn.emplace_back(leftover);
+		else{
+			int alter;
+			alter = 0;
+			if (leftover.at(0) == '\"' && leftover.at(leftover.size() - 1) == '\"')
+				alter = 1;
+			toreturn.emplace_back(leftover.substr(0+alter, leftover.size()-(2*alter)));
+			leftover = leftover.substr(found + delim.size());
+		}
+	}
 	return toreturn;
-}
-
-size_t write_data(void *ptr, size_t size, size_t nmemb, FILE *stream){
-	size_t written;
-	written = fwrite(ptr, size, nmemb, stream);
-	return written;
 }
 
 void replaceinstring(std::string &toedit, const char *rpl, const char *with){
@@ -354,65 +483,7 @@ void replaceinstring(std::string &toedit, const char *rpl, const char *with){
 	while ((found = toedit.find(rpl)) != std::string::npos){
 		toedit.replace(found, strlen(rpl), with);
 	}
-}*/
-
-/*bool libcurlSaveFile(const wchar_t *url, const wchar_t *filename){
-	char *urlc = new char[wcslen(url) + 2];
-	size_t conv;
-	wcstombs(&conv, urlc, wcslen(url) + 2, url, wcslen(url) + 1);
-	CURL *curl;
-	FILE *fp;
-	CURLcode res;
-	curl = curl_easy_init();
-	if (curl) {
-		_wfopen(&fp, filename, L"wb");
-		if (fp){
-			curl_easy_setopt(curl, CURLOPT_URL, urlc);
-			curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_data);
-			curl_easy_setopt(curl, CURLOPT_WRITEDATA, fp);
-			res = curl_easy_perform(curl);
-			curl_easy_cleanup(curl);
-			fclose(fp);
-			delete[] urlc;
-			return true;
-		}
-		else {
-			delete[] urlc;
-			return false;
-		}
-	}
-	else{
-		delete[] urlc;
-		return false;
-	}
-}*/
-
-/*std::string computeMD5(const char *filename){
-	const size_t BufferSize = 144 * 7 * 1024; 
-	char* buffer = new char[BufferSize]; 
-	std::ifstream file; 
-	std::istream* input = NULL; 
-	MD5 digestMd5;
-	file.open(filename, std::ios::in | std::ios::binary); 
-	if (!file) { 
-		std::cerr << "Can't open '" << filename << "'" << std::endl; return ""; 
-	} 
-	input = &file; 
-	while (*input) { 
-		input->read(buffer, BufferSize); 
-		std::size_t numBytesRead = size_t(input->gcount()); 
-		digestMd5.add(buffer, numBytesRead); 
-	} 
-	file.close(); 
-	delete[] buffer;
-
-	return digestMd5.getHash();
-}*/
-//End testing functions
-
-
-
-
+}
 
 
 

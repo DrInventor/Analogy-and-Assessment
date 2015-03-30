@@ -35,7 +35,35 @@ DrInventorSqlitedb::DrInventorSqlitedb(const char *dir, const char *dbfile, cons
 	}
 	else{
 		rc = sqlite3_open((const char *)dbfile, &db);
-		//wstring output = convertInt(rc);
+		if (rc){
+			printf_s("Can't open database: %s\n", sqlite3_errmsg(db));
+			sqlite3_close(db);
+		}
+		else
+			dbopen = true;
+	}
+}
+
+DrInventorSqlitedb::DrInventorSqlitedb(const char *dbfile){
+	//Open the sqlite database, if it doesn't exist, create it
+	dbfilename = dbfile;
+	filehome = "";
+	int rc;
+	dbopen = false;
+	fb = '\\';
+	if (!FileOpenable(dbfile)){
+		rc = sqlite3_open((const char *)dbfile, &db);
+		if (rc){
+			printf_s("Can't open database: %s\n", sqlite3_errmsg(db));
+			sqlite3_close(db);
+		}
+		else{
+			sqlcreate();
+			dbopen = true;
+		}
+	}
+	else{
+		rc = sqlite3_open((const char *)dbfile, &db);
 		if (rc){
 			printf_s("Can't open database: %s\n", sqlite3_errmsg(db));
 			sqlite3_close(db);
@@ -169,27 +197,55 @@ void DrInventorSqlitedb::UpdateNodeCount(long graphid, unsigned int relcount, un
 	}
 }
 
-long DrInventorSqlitedb::InsertFile(const char *filename, const char *tknfilename, bool *isnew){
-	//This is all temporary storage of files in folder structure. Should be changed in full integration but need to know where exactly
+long DrInventorSqlitedb::GetIDfromLongID(const char *longid){
 	std::stringstream sqlcommand;
-	sqlcommand << "SELECT key from Graphlist WHERE filename='" << filename << "';";
+	sqlcommand << "SELECT key from Graphlist WHERE filename='" << longid << "';";
 	std::vector<std::string> values;
 	unsigned int nrows, ncols;
 	do_sqlite_table(sqlcommand.str().c_str(), &values, &nrows, &ncols);
 	if (nrows > 0){
-/*		bool keepgoing = true;
-		while (keepgoing){
-			printf_s("\nThis file is already in the database, overwrite (y/n)?");
-			char resp[20];
-			scanf("%s", resp);
-			if (strcmp(resp,"y") == 0) keepgoing = false;
-			else if (strcmp(resp, "n") == 0) keepgoing = false;
-		}*/
+		return atol(values[0].c_str());
+	}
+	else return -1;
+}
+
+int DrInventorSqlitedb::GetTotalNodeCount(const char *longid){
+	std::stringstream sqlcommand;
+	sqlcommand << "SELECT relationnodes, conceptnodes from Graphlist WHERE filename='" << longid << "';";
+	std::vector<std::string> values;
+	unsigned int nrows, ncols;
+	do_sqlite_table(sqlcommand.str().c_str(), &values, &nrows, &ncols);
+	if (nrows > 0){
+		return atol(values[0].c_str()) + atol(values[1].c_str());
+	}
+	else return -1;
+}
+
+int DrInventorSqlitedb::GetTotalNodeCount(long neoid){
+	std::stringstream sqlcommand;
+	sqlcommand << "SELECT relationnodes, conceptnodes from Graphlist WHERE key='" << neoid << "';";
+	std::vector<std::string> values;
+	unsigned int nrows, ncols;
+	do_sqlite_table(sqlcommand.str().c_str(), &values, &nrows, &ncols);
+	if (nrows > 0){
+		return atol(values[0].c_str()) + atol(values[1].c_str());
+	}
+	else return -1;
+}
+
+long DrInventorSqlitedb::InsertFile(const char *filename, const char *uniqueid, bool *isnew, bool createfolder){
+	//This is all temporary storage of files in folder structure. Should be changed in full integration but need to know where exactly
+	std::stringstream sqlcommand;
+	sqlcommand << "SELECT key from Graphlist WHERE tknfilename='" << uniqueid << "';";
+	std::vector<std::string> values;
+	unsigned int nrows, ncols;
+	do_sqlite_table(sqlcommand.str().c_str(), &values, &nrows, &ncols);
+	if (nrows > 0){
 		*isnew = false;
 		return atol(values[0].c_str());
 	}
 	sqlcommand.str("");
-	sqlcommand << "INSERT into Graphlist(filename,tknfilename) VALUES('" << filename << "','" << tknfilename << "');";
+	sqlcommand << "INSERT into Graphlist(filename,tknfilename) VALUES('" << filename << "','" << uniqueid << "');";
 	char *zErrMsg;
 	bool rc = do_sqlite_exec(sqlcommand.str().c_str(), &zErrMsg);
 	if (!rc){
@@ -200,13 +256,15 @@ long DrInventorSqlitedb::InsertFile(const char *filename, const char *tknfilenam
 	*isnew = true;
 	//Create the directory to store the files and copy the originals into this directory
 	long filekey = (long)sqlite3_last_insert_rowid(db);
-	std::stringstream newdir;
-	newdir << filehome << filekey;
-	#if defined(_WIN32)
-	_mkdir(newdir.str().c_str());
-	#else 
-	mkdir(newdir.str().c_str(), 0777);
-	#endif
+	if (createfolder){
+		std::stringstream newdir;
+		newdir << filehome << filekey;
+		#if defined(_WIN32)
+		_mkdir(newdir.str().c_str());
+		#else 
+		mkdir(newdir.str().c_str(), 0777);
+		#endif
+	}
 
 	/*//Making copies of the CSV files. Probably not really needed
 	newdir << fb << filename;

@@ -16,6 +16,7 @@
 class DrInventorFindTriples{
 public:
 	DrInventorFindTriples(const char *, const char *);
+	DrInventorFindTriples(const char *);
 	~DrInventorFindTriples();
 	bool PrintInbetweenGraphs(void);
 	void MakeNewLinks(bool tc=false);
@@ -34,7 +35,7 @@ private:
 
 	struct word{
 		unsigned int id;
-		std::string st;
+		std::string st,pos;
 		int type; //0=discard, 1=verb, 2=noun
 	};
 
@@ -54,14 +55,16 @@ private:
 		std::vector<struct triple> triples;
 	};
 	bool tagwords(void);
+	bool tagwordsnew(void);
 	std::vector<struct sentence> sentences;
 	std::vector<struct stringpair> appos;
 	std::string filename, tokenfile;
-	bool graphsmade, foundtriples, blockprint;
+	bool graphsmade, foundtriples, blockprint, tagwordsold;
 	
 	bool findappo(std::vector<struct sentence>::iterator sit, unsigned int id);
 	void FindTriples(bool tc=false);
 	int processline(std::string);
+	int processlineofcombinedtable(std::string which);
 	std::vector<int> containedin(int bit, int sent);
 	void discardstuff(int sent);
 	void findnewlink(unsigned int start, unsigned int from, std::vector<struct link> *newlinks, unsigned int sent);

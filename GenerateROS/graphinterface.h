@@ -2,6 +2,7 @@
 
 #include <boost/graph/adjacency_list.hpp>
 #include <boost/graph/connected_components.hpp>
+#include <boost/graph/mcgregor_common_subgraphs.hpp>
 
 #include "commonstructs.h"
 
@@ -27,5 +28,4 @@ private:
 	void HighestDegree(void);
 	void LargestComponent(std::vector<int> *comp, int num);
 	int FindUniqueRelations(std::vector<struct anode> *, std::vector<std::string> *);
-
 };

@@ -12,6 +12,7 @@
 #include "rapidjson/stringbuffer.h"
 #include "rapidjson/writer.h"
 #include "commonstructs.h"
+#include "base64.h"
 
 #if !(defined(WIN32) || defined(_WIN32) || defined(__WIN32) && !defined(__CYGWIN__))
 #define stricmp strcasecmp
@@ -24,13 +25,22 @@
 class Neo4jInteract{
 public:
 	bool isopen(void);
-	bool AddNodetoNeo4j(const char *word, int type, const char *gvlabel, long *nodeid, long graphid, long sentid);
+	bool AddNodetoList(int which, const char *word, int type, const char *gvlab, long graphid, long sentid);
+	bool AddLinktoList(int type, long nodeid, long nodeto);
+	void BeginBatchOperations(int howmuch);
+	std::vector<long> ExecuteNodeList(void);
+	bool ExecuteLinkList(void);
+	bool AddNodetoNeo4j(const char *word, int type, const char *gvlab, long *nodeid, long graphid, long sentid);
 	bool MakeLink(int type, long nodeid, long nodeto);
-	Neo4jInteract(const char *location);
+	Neo4jInteract(const char *location, const char *username, const char *password);
+	bool neo4cyphermultiple(std::vector<std::string> *commands, std::string *response);
+	bool neo4cypher(const char *command, std::string *response);
 	bool neo4cypher(const char *command);
 	bool GVtoNeo4j(const char *filename, long graphid);
+	//struct agraph GetGraphbyID(long id);
 private:
 	bool curlok;
+	void EndBatchOperations(void);
 	struct MemoryStruct {
 		char *memory;
 		size_t size;
@@ -57,7 +67,16 @@ private:
 
 		return realsize;
 	}
+	static size_t WriteMemoryCallbackString(void *contents, size_t size, size_t nmemb, void *userp){
+		size_t realsize = size * nmemb;
+		std::string *response = (std::string *)userp;
 
+		*response += (char *)contents;
+		return realsize;
+	}
+	std::vector<rapidjson::Document> anode, anodenest, nodelabels, linklist, linklistnest;
 
-	std::string neo4jlocation;
+	rapidjson::Document *fulllist, *fulllinks;
+	
+	std::string neo4jlocation, authenttoken;
 };

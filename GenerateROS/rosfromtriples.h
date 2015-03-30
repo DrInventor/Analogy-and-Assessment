@@ -19,6 +19,7 @@ public:
 	ROSFromTriples(std::vector<struct triplesent> *, long);
 	~ROSFromTriples();
 	void PrintGVFile(const char *filename, bool makepng, bool Neo4j, const char *dirtxt);
+	void InserttoNeo4j(void);
 	DrInventorSqlitedb *sqlitedb;
 	Neo4jInteract *neodb;
 	std::string gvlocation, neo4jlocation;

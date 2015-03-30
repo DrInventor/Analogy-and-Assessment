@@ -42,10 +42,13 @@ int ROSFromTriples::find_concept(const char *tofind){
 
 ROSFromTriples::ROSFromTriples(std::vector<struct triplesent> *ptr, long gid){
 	ok = false;
+	linksmade = false;
 	if (ptr != NULL){
 		triples = ptr;
+		graphid = gid;
 		ok = true;
 	}
+
 }
 
 void ROSFromTriples::makelinks(void){
@@ -107,11 +110,44 @@ void ROSFromTriples::makelinks(void){
 	linksmade = true;
 }
 
-bool ROSFromTriples::makeneo4jrelations(unsigned int tlink){
+/*bool ROSFromTriples::makeneo4jrelations(unsigned int tlink){
 	//A Relation has two links: one from subject to verb and then one from verb to object. Insert both these into neo4j database
 	neodb->MakeLink(1, concepts[links[tlink].sbj].nodeid, relations[links[tlink].vb].nodeid);
 	neodb->MakeLink(2, relations[links[tlink].vb].nodeid, concepts[links[tlink].obj].nodeid);
 	return true;
+}*/
+
+bool ROSFromTriples::makeneo4jrelations(unsigned int tlink){
+	//A Relation has two links: one from subject to verb and then one from verb to object. Insert both these into neo4j database
+	neodb->AddLinktoList(1, concepts[links[tlink].sbj].nodeid, relations[links[tlink].vb].nodeid);
+	neodb->AddLinktoList(2, relations[links[tlink].vb].nodeid, concepts[links[tlink].obj].nodeid);
+	return true;
+}
+
+void ROSFromTriples::InserttoNeo4j(void){
+	if (!linksmade)
+		makelinks();
+	neodb->BeginBatchOperations(concepts.size() + relations.size());
+	char buf[64];
+	for (unsigned int i = 0; i < concepts.size(); ++i){
+		sprintf_s(buf, "c%u", i);
+		neodb->AddNodetoList(i, concepts[i].word.c_str(), 1, buf, graphid, 0);
+	}
+	for (unsigned int i = 0; i < links.size(); ++i){
+		sprintf_s(buf, "r%u", i);
+		neodb->AddNodetoList(concepts.size() + i, relations[links[i].vb].word.c_str(), 2, buf, graphid, relations[links[i].vb].sentid);
+	}
+	std::vector<long> ids = neodb->ExecuteNodeList();
+	for (unsigned int i = 0; i < ids.size(); ++i){
+		if (i < concepts.size())
+			concepts[i].nodeid = ids[i];
+		else
+			relations[i - concepts.size()].nodeid = ids[i];
+	}
+	for (unsigned int i = 0; i < links.size(); ++i)
+		makeneo4jrelations(i);
+	neodb->ExecuteLinkList();
+	sqlitedb->UpdateNodeCount(graphid, relations.size(), concepts.size());
 }
 
 void ROSFromTriples::PrintGVFile(const char *filename, bool makepng, bool Neo4j, const char *dirtxt){
@@ -138,12 +174,13 @@ void ROSFromTriples::PrintGVFile(const char *filename, bool makepng, bool Neo4j,
 	filewrite << dirtxt << "linklist";
 	linksf.open(filewrite.str().c_str());
 	if (out){
+		if(Neo4j) neodb->BeginBatchOperations(concepts.size() + relations.size());
 		fprintf_s(out, "digraph graphname {\n\tnode [style=filled color=green]\n");
 		for (unsigned int i = 0; i < concepts.size(); ++i){
 			fprintf_s(out, "\tc%u [label=\"%s\" shape=box style=filled color=yellow]\n", i, concepts[i].word.c_str());
 			char buf[256];
 			sprintf_s(buf, "c%u", i);
-			if (Neo4j) neodb->AddNodetoNeo4j(concepts[i].word.c_str(), 1, buf, &concepts[i].nodeid, graphid, 0);
+			if (Neo4j) neodb->AddNodetoList(i, concepts[i].word.c_str(), 1, buf, graphid, 0);
 			if (cnodef.is_open()){
 				//If: so there is no blank newline at the end of the file
 				if (i < concepts.size() - 1)
@@ -157,8 +194,7 @@ void ROSFromTriples::PrintGVFile(const char *filename, bool makepng, bool Neo4j,
 			char buf[256];
 			sprintf_s(buf, "r%u", i);
 			if (Neo4j){
-				neodb->AddNodetoNeo4j(relations[links[i].vb].word.c_str(), 2, buf, &relations[i].nodeid, graphid, relations[links[i].vb].sentid);
-				makeneo4jrelations(i);
+				neodb->AddNodetoList(concepts.size()+i,relations[links[i].vb].word.c_str(), 2, buf, graphid, relations[links[i].vb].sentid);
 			}
 			if (rnodef.is_open()){
 				if (i < links.size() - 1)
@@ -173,14 +209,25 @@ void ROSFromTriples::PrintGVFile(const char *filename, bool makepng, bool Neo4j,
 					linksf << links[i].vb << "," << links[i].sbj << "," << links[i].obj;
 			}
 		}
+		if (Neo4j){
+			std::vector<long> ids = neodb->ExecuteNodeList();
+			for (unsigned int i = 0; i < ids.size(); ++i){
+				if (i < concepts.size())
+					concepts[i].nodeid = ids[i];
+				else
+					relations[i - concepts.size()].nodeid = ids[i];
+			}
+			for (unsigned int i = 0; i < links.size(); ++i)
+				makeneo4jrelations(i);
+			neodb->ExecuteLinkList();
+		}
 		if (cnodef.is_open())
 			cnodef.close();
 		if (rnodef.is_open())
 			rnodef.close();
 		if (linksf.is_open())
 			linksf.close();
-		//fprintf_s(out, "\tlabel=\"[*] indicates an unknown concept node\";\n\tlabelloc = bottom;\n\tlabeljust = right;\n}");
-		fprintf_s(out, "}");
+		fprintf_s(out, "\tlabel=\"[*] indicates an unknown concept node\";\n\tlabelloc = bottom;\n\tlabeljust = right;\n}");
 		fclose(out);
 		if (makepng && gvlocation != ""){
 			std::stringstream buf2;
