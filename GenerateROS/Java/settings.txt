@@ -1,6 +1,0 @@
-neo4j=http://localhost:7474/
-store=results\
-dbfil=data.db
-gravz=c:\users\user\documents\gv\
-neouser=neo4j
-neopass=drineo4j

@@ -1,4 +1,0 @@
-Boost: includes libraries required (not included)
-Sqlite.h Sqlite.c (not included)
-libcurl: headers and .lib for windows (not included)
-tinydir.h (included)
