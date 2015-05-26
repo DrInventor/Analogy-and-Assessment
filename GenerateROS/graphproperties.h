@@ -4,8 +4,8 @@
 
 class GraphProperties{
 public:
-	GraphProperties(long neo4id, const char *neoloc, const char *neouser, const char *neopass);
-	GraphProperties(const char *longid, const char *dbfile, const char *neoloc, const char *neouser, const char *neopass);
+	GraphProperties(long neo4id, const char *neoloc, const char *neouser, const char *neopass, bool testneo4j=true);
+	GraphProperties(const char *longid, const char *dbfile, const char *neoloc, const char *neouser, const char *neopass, bool testneo4j=true);
 	~GraphProperties(void);
 	void ConvertGraphtoNodes(void);
 	bool is_open(void);
@@ -21,11 +21,11 @@ public:
 		}
 	};
 	std::vector<struct longnode> nodes;
-private:
 	struct agraph thegraph;
+private:
 	long GraphID;
 	long conceptcount;
 	bool OK;
 	std::string neo4user, neo4pass;
-	bool GetGraphbyID(long id, const char *neo4loc);
+	bool GetGraphbyID(long id, const char *neo4loc, bool testneo4j);
 };

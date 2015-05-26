@@ -1,5 +1,9 @@
 #include "neo4jinteract.h"
 
+Neo4jInteract::~Neo4jInteract(){
+	curl_global_cleanup();
+}
+
 void Neo4jInteract::BeginBatchOperations(int howmuch){
 	//Needs to be called before adding any nodes or links to the temporary lists. This ensures enough memory is allocated.
 	anode.resize(howmuch);
@@ -19,9 +23,13 @@ void Neo4jInteract::EndBatchOperations(void){
 	anode.clear();
 	anodenest.clear();
 	nodelabels.clear();
+	linklist.clear();
+	linklistnest.clear();
 	std::vector<rapidjson::Document>().swap(anode);
 	std::vector<rapidjson::Document>().swap(anodenest);
 	std::vector<rapidjson::Document>().swap(nodelabels);
+	std::vector<rapidjson::Document>().swap(linklist);
+	std::vector<rapidjson::Document>().swap(linklistnest);
 
 }
 
@@ -290,7 +298,7 @@ bool Neo4jInteract::AddNodetoNeo4j(const char *word, int type, const char *gvlab
 	}
 }
 
-Neo4jInteract::Neo4jInteract(const char *location, const char *user, const char *password){
+Neo4jInteract::Neo4jInteract(const char *location, const char *user, const char *password, bool testneo4j){
 	/*
 	Constructor
 	Tests if Curl can make any connection with the database
@@ -299,83 +307,95 @@ Neo4jInteract::Neo4jInteract(const char *location, const char *user, const char 
 	*/
 	neo4jlocation = location;
 	curl_global_init(CURL_GLOBAL_ALL);
-	CURL *curl;
-	CURLcode res;
-	curlok = true;
-	curl = curl_easy_init();
-	if (!curl)
-		curlok = false;
-	else{
-		struct MemoryStruct chunk;
-
-		curl_easy_setopt(curl, CURLOPT_URL, neo4jlocation.c_str());
-		curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteMemoryCallback);
-		curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void *)&chunk);
-		res = curl_easy_perform(curl);
-		long http_code = 0;
-		curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
-		if (res != CURLE_OK){
-			//printf_s("curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
+	if (testneo4j){
+		CURL *curl;
+		CURLcode res;
+		curlok = true;
+		curl = curl_easy_init();
+		if (!curl)
 			curlok = false;
-		}
-		free(chunk.memory);
-	//	curl_easy_cleanup(curl);
-	}
-	//Authentication
-	if (curlok){
-		/*CURL *curl;
-		curl = curl_easy_init();*/
-		struct MemoryStruct chunk;
-		std::string newurl = neo4jlocation + "user/" + user;
-		curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void *)&chunk);
-		struct curl_slist *headers = NULL;
-		headers = curl_slist_append(headers, "Accept: application/json");
-		headers = curl_slist_append(headers, "Content-Type: application/json");
-		headers = curl_slist_append(headers, "charsets: utf-8");
-
-		if (strlen(user) > 0 && strlen(password) > 0){
-			std::stringstream auth;
-			auth << user << ":" << password;
-			std::string encode = base64_encode(auth.str().c_str(), auth.str().size());
-			auth.str("");
-			auth << "Authorization: Basic " << encode;
-			authenttoken = auth.str().c_str();
-			headers = curl_slist_append(headers, authenttoken.c_str());
-		}
 		else{
-			authenttoken = "";
-			newurl = neo4jlocation + "db/data/";
-		}
-		curl_easy_setopt(curl, CURLOPT_URL, newurl.c_str());
-		curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteMemoryCallback);
-		curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void *)&chunk);
-		curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "GET");
-		curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
-		curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteMemoryCallback);
-		curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void *)&chunk);
+			struct MemoryStruct chunk;
 
-		long http_code = 0;
-		res = curl_easy_perform(curl);
-		curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
-		if (res != CURLE_OK){
-			//printf_s("curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
-			curlok = false;
-		}
-		rapidjson::Document d;
-		d.Parse(chunk.memory);
-		if (authenttoken != "" && d.HasMember("username") && strcmp(d["username"].GetString(), user) == 0 && d.HasMember("password_change_required")){
-			if (d["password_change_required"].GetBool()){
-				printf_s("Failed to connect to Neo4j database: Authentication error: Must change password\n");
+			curl_easy_setopt(curl, CURLOPT_URL, neo4jlocation.c_str());
+			curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteMemoryCallback);
+			curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void *)&chunk);
+			res = curl_easy_perform(curl);
+			long http_code = 0;
+			curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
+			if (res != CURLE_OK){
+				//printf_s("curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
 				curlok = false;
 			}
+			//printf_s(chunk.memory);
+			free(chunk.memory);
+			//	curl_easy_cleanup(curl);
 		}
-		else if (authenttoken == "" && !d.HasMember("errors"));
-		else{
-			printf_s("Failed to connect to Neo4j database: Authentication error.\n");
-			curlok = false;
+		//Authentication
+		if (curlok){
+			/*CURL *curl;
+			curl = curl_easy_init();*/
+			struct MemoryStruct chunk;
+			std::string newurl = neo4jlocation + "user/" + user;
+			curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void *)&chunk);
+			struct curl_slist *headers = NULL;
+			headers = curl_slist_append(headers, "Accept: application/json");
+			headers = curl_slist_append(headers, "Content-Type: application/json");
+			headers = curl_slist_append(headers, "charsets: utf-8");
+
+			if (strlen(user) > 0 && strlen(password) > 0){
+				std::stringstream auth;
+				auth << user << ":" << password;
+				std::string encode = base64_encode(auth.str().c_str(), (unsigned int)auth.str().size());
+				auth.str("");
+				auth << "Authorization: Basic " << encode;
+				authenttoken = auth.str().c_str();
+				headers = curl_slist_append(headers, authenttoken.c_str());
+			}
+			else{
+				authenttoken = "";
+				newurl = neo4jlocation + "db/data/";
+			}
+			curl_easy_setopt(curl, CURLOPT_URL, newurl.c_str());
+			curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteMemoryCallback);
+			curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void *)&chunk);
+			curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "GET");
+			curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+			curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteMemoryCallback);
+			curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void *)&chunk);
+
+			long http_code = 0;
+			res = curl_easy_perform(curl);
+			curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
+			if (res != CURLE_OK){
+				//printf_s("curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
+				curlok = false;
+			}
+			rapidjson::Document d;
+			d.Parse(chunk.memory);
+			if (authenttoken != "" && d.HasMember("username") && strcmp(d["username"].GetString(), user) == 0 && d.HasMember("password_change_required")){
+				if (d["password_change_required"].GetBool()){
+					printf_s("Failed to connect to Neo4j database: Authentication error: Must change password\n");
+					curlok = false;
+				}
+			}
+			else if (authenttoken == "" && !d.HasMember("errors"));
+			else{
+				printf_s("Failed to connect to Neo4j database: Authentication error.\n");
+				curlok = false;
+			}
+			free(chunk.memory);
+			curl_easy_cleanup(curl);
 		}
-		free(chunk.memory);
-		curl_easy_cleanup(curl);
+	}
+	else{
+		std::stringstream auth;
+		auth << user << ":" << password;
+		std::string encode = base64_encode(auth.str().c_str(), (unsigned int)auth.str().size());
+		auth.str("");
+		auth << "Authorization: Basic " << encode;
+		authenttoken = auth.str().c_str();
+		curlok = true;
 	}
 }
 
@@ -644,7 +664,7 @@ bool Neo4jInteract::AddLinktoList(int type, long nodeid, long nodeto){
 	//Adds a link to the temporary list to prepare the REST api call to Neo4j
 	linklist.emplace_back();
 	linklistnest.emplace_back();
-	int which = linklist.size()-1;
+	int which = (int)linklist.size()-1;
 	linklist[which].SetObject();
 	linklistnest[which].SetObject();
 	rapidjson::Document::AllocatorType&allocator = linklist[which].GetAllocator();

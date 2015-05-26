@@ -1,21 +1,20 @@
 #include "graphproperties.h"
 
 /*
-Graph Properties is for obtained information from the Neo4j database
+Graph Properties is for obtaining information from the Neo4j database
 It is given an id (in either form of the Neo4j database or the longid (which is cross referenced in the sql database), the graph is then read and formed
 An additional function ConvertGraphtoNodes can be called and then the local node array is populated with detailed information about each node
 */
 
-GraphProperties::GraphProperties(long neo4id, const char *neo4loc, const char *neouser, const char *neopass){
-	
+GraphProperties::GraphProperties(long neo4id, const char *neo4loc, const char *neouser, const char *neopass, bool testneo4j){
 	OK = false;
 	GraphID = neo4id;
 	neo4user = neouser; neo4pass = neopass;
-	if (GetGraphbyID(neo4id, neo4loc) && conceptcount > 0)
+	if (GetGraphbyID(neo4id, neo4loc, testneo4j) && conceptcount > 0)
 			OK = true;
 }
 
-GraphProperties::GraphProperties(const char * longid, const char *dbfile, const char *neo4loc, const char *neouser, const char *neopass){
+GraphProperties::GraphProperties(const char * longid, const char *dbfile, const char *neo4loc, const char *neouser, const char *neopass, bool testneo4j){
 	DrInventorSqlitedb *sqlitedb;
 	sqlitedb = new DrInventorSqlitedb(dbfile);
 	long neo4id;
@@ -23,20 +22,22 @@ GraphProperties::GraphProperties(const char * longid, const char *dbfile, const 
 	OK = false;
 	if (sqlitedb->isopen()){
 		neo4id = sqlitedb->GetIDfromLongID(longid);
+		delete sqlitedb;
 		neo4user = neouser; neo4pass = neopass;
-		if (GetGraphbyID(neo4id, neo4loc) && conceptcount > 0)
+		if (GetGraphbyID(neo4id, neo4loc, testneo4j) && conceptcount > 0)
 				OK = true;
 	}
-	delete sqlitedb;
+	else
+		delete sqlitedb;
 }
 
 bool GraphProperties::is_open(void){
 	return OK;
 }
 
-bool GraphProperties::GetGraphbyID(long id, const char *neo4loc){
+bool GraphProperties::GetGraphbyID(long id, const char *neo4loc, bool testneo4j){
 	Neo4jInteract *neodb; 
-	neodb = new Neo4jInteract(neo4loc, neo4user.c_str(), neo4pass.c_str());
+	neodb = new Neo4jInteract(neo4loc, neo4user.c_str(), neo4pass.c_str(), testneo4j);
 	if (neodb->isopen()){
 		std::stringstream tmpcmd;
 		std::vector<std::string> commands;
@@ -104,9 +105,9 @@ bool GraphProperties::GetGraphbyID(long id, const char *neo4loc){
 							int temp;
 							if (i == 1){
 								sscanf_s(parsed[1].c_str(), "c%d", &temp);
-								if (temp >= noconcepts){
+								if (temp >= noconcepts){//i.e. is the c0-cN sequence is broken? 
 									needconlookup = true;
-									break;
+									break; //Since the sequence is broken, exit the loop as a new method is required
 								}
 								else{
 									thegraph.concepts[temp].word = parsed[0];
@@ -115,7 +116,7 @@ bool GraphProperties::GetGraphbyID(long id, const char *neo4loc){
 							}
 							else{
 								sscanf_s(parsed[1].c_str(), "r%d", &temp);
-								if (temp >= noconcepts){
+								if (temp >= norelations){ 
 									needrellookup = true;
 									break;
 								}
@@ -129,7 +130,7 @@ bool GraphProperties::GetGraphbyID(long id, const char *neo4loc){
 					}
 				}
 			}
-			//This is only called if the c0->cN sequence is broken
+			//This is only called if the c0->cN sequence is broken (so gaps are actually allowed)
 			if (needconlookup){
 				lookupc.resize(noconcepts);
 				int i = 1;
@@ -177,7 +178,8 @@ bool GraphProperties::GetGraphbyID(long id, const char *neo4loc){
 							sscanf_s(parsed[1].c_str(), "c%d", &temp);
 							lookupr[k] = temp;
 							thegraph.relations[k].word = parsed[0];
-							thegraph.relations[k].id = atoi(parsed[2].c_str());
+							sentid[k] = atoi(parsed[2].c_str());
+							thegraph.relations[k].id = atoi(parsed[3].c_str());
 						}
 					}
 				}
@@ -214,10 +216,12 @@ bool GraphProperties::GetGraphbyID(long id, const char *neo4loc){
 				}
 			}
 		}
-		conceptcount = thegraph.concepts.size();
+		conceptcount = (long)thegraph.concepts.size();
 		return true;
 	}
-	conceptcount = thegraph.concepts.size();
+	else
+		delete neodb;
+	conceptcount = (long)thegraph.concepts.size();
 	return false;
 }
 

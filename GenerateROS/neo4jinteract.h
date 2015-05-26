@@ -6,7 +6,7 @@
 #include <vector>
 
 #include "curl/curl.h"
-#include "curl/types.h"
+//#include "curl/types.h"
 #include "curl/easy.h"
 #include "rapidjson/document.h"
 #include "rapidjson/stringbuffer.h"
@@ -24,6 +24,8 @@
 
 class Neo4jInteract{
 public:
+	Neo4jInteract(const char *location, const char *username, const char *password, bool testneo4j=true);
+	~Neo4jInteract();
 	bool isopen(void);
 	bool AddNodetoList(int which, const char *word, int type, const char *gvlab, long graphid, long sentid);
 	bool AddLinktoList(int type, long nodeid, long nodeto);
@@ -32,7 +34,6 @@ public:
 	bool ExecuteLinkList(void);
 	bool AddNodetoNeo4j(const char *word, int type, const char *gvlab, long *nodeid, long graphid, long sentid);
 	bool MakeLink(int type, long nodeid, long nodeto);
-	Neo4jInteract(const char *location, const char *username, const char *password);
 	bool neo4cyphermultiple(std::vector<std::string> *commands, std::string *response);
 	bool neo4cypher(const char *command, std::string *response);
 	bool neo4cypher(const char *command);

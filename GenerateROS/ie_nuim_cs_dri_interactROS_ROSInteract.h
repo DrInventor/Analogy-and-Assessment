@@ -39,6 +39,54 @@ JNIEXPORT jobjectArray JNICALL Java_ie_nuim_cs_dri_interactROS_ROSInteract_GetNe
 JNIEXPORT jobjectArray JNICALL Java_ie_nuim_cs_dri_interactROS_ROSInteract_GetNeo4jGraphNodes__Ljava_lang_String_2
   (JNIEnv *, jobject, jstring);
 
+/*
+ * Class:     ie_nuim_cs_dri_interactROS_ROSInteract
+ * Method:    GetNeo4jGraphSimple
+ * Signature: (J)Lie/nuim/cs/dri/interactROS/simplegraph;
+ */
+JNIEXPORT jobject JNICALL Java_ie_nuim_cs_dri_interactROS_ROSInteract_GetNeo4jGraphSimple__J
+  (JNIEnv *, jobject, jlong);
+
+/*
+ * Class:     ie_nuim_cs_dri_interactROS_ROSInteract
+ * Method:    GetNeo4jGraphSimple
+ * Signature: (Ljava/lang/String;)Lie/nuim/cs/dri/interactROS/simplegraph;
+ */
+JNIEXPORT jobject JNICALL Java_ie_nuim_cs_dri_interactROS_ROSInteract_GetNeo4jGraphSimple__Ljava_lang_String_2
+  (JNIEnv *, jobject, jstring);
+
+/*
+ * Class:     ie_nuim_cs_dri_interactROS_ROSInteract
+ * Method:    GetRawNeo4jGraph
+ * Signature: (J)Ljava/lang/String;
+ */
+JNIEXPORT jstring JNICALL Java_ie_nuim_cs_dri_interactROS_ROSInteract_GetRawNeo4jGraph__J
+  (JNIEnv *, jobject, jlong);
+
+/*
+ * Class:     ie_nuim_cs_dri_interactROS_ROSInteract
+ * Method:    GetRawNeo4jGraph
+ * Signature: (Ljava/lang/String;)Ljava/lang/String;
+ */
+JNIEXPORT jstring JNICALL Java_ie_nuim_cs_dri_interactROS_ROSInteract_GetRawNeo4jGraph__Ljava_lang_String_2
+  (JNIEnv *, jobject, jstring);
+
+/*
+ * Class:     ie_nuim_cs_dri_interactROS_ROSInteract
+ * Method:    TestNeo4jConnection
+ * Signature: ()Z
+ */
+JNIEXPORT jboolean JNICALL Java_ie_nuim_cs_dri_interactROS_ROSInteract_TestNeo4jConnection
+  (JNIEnv *, jobject);
+
+/*
+ * Class:     ie_nuim_cs_dri_interactROS_ROSInteract
+ * Method:    CheckDllVersion
+ * Signature: (D)Z
+ */
+JNIEXPORT jboolean JNICALL Java_ie_nuim_cs_dri_interactROS_ROSInteract_CheckDllVersion
+  (JNIEnv *, jobject, jdouble);
+
 #ifdef __cplusplus
 }
 #endif

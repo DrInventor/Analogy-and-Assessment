@@ -17,7 +17,7 @@ int main(int argc, char** argv)
 	struct settings set;
 	parsesettings(&set);
 	curl_global_init(CURL_GLOBAL_ALL);
-	printf_s("GenerateROS Version 0.2.0\n");
+	printf_s("GenerateROS Version 0.3.0\n");
 	if (argc > 1){
 		if (strcmp(argv[1], "-pg") == 0){
 			//Process file into Graph
@@ -103,8 +103,8 @@ int main(int argc, char** argv)
 }
 
 void TestingStuff(struct settings *set){
-/*	Neo4jInteract neodb(set->neo4j.c_str());
-	struct agraph thegraph = neodb.GetGraphbyID(1);
+	//Neo4jInteract neodb(set->neo4j.c_str());
+/*	struct agraph thegraph = neodb.GetGraphbyID(1);
 	printf_s("%d %d %d \n", thegraph.concepts.size(), thegraph.relations.size(), thegraph.links.size());
 	for (unsigned int i = 0; i < thegraph.links.size(); ++i){
 		printf_s("%d %d %d\n", thegraph.links[i].sbj, thegraph.links[i].obj, thegraph.links[i].vb);
@@ -115,14 +115,20 @@ void TestingStuff(struct settings *set){
 	for (unsigned int i = 0; i < thegraph.relations.size(); ++i){
 		printf_s("%s %d\n", thegraph.relations[i].word.c_str(), thegraph.relations[i].id);
 	}*/
-	DrInventorSqlitedb *db;
+	/*DrInventorSqlitedb *db;
 	db = new DrInventorSqlitedb(set->dbfil.c_str());
 	int count = db->GetTotalNodeCount(6);
 	printf_s("AB : %d\n", count);
 	delete db;
 	GraphProperties gphprop(18, set->neo4j.c_str(), set->neouser.c_str(), set->neopass.c_str());
 	if (gphprop.is_open())
-		gphprop.ConvertGraphtoNodes();
+		gphprop.ConvertGraphtoNodes();*/
+	printf_s("%s , %s\n", set->neouser.c_str(), set->neopass.c_str());
+	Neo4jInteract neodb(set->neo4j.c_str(), set->neouser.c_str(), set->neopass.c_str(), true);
+	std::string response;
+	neodb.neo4cypher("match n where n.Graphid=1 return n;", &response);
+
+	printf_s(response.c_str());
 	/*std::vector<int> testing;
 	for (unsigned int i = 0; i < 20; ++i)
 		testing.emplace_back(i);
@@ -217,15 +223,13 @@ int ProcessAllGraphs(DrInventorSqlitedb *sqlitedb, const char *graphviz, const c
 	return 0;
 }
 
-long ProcessGraphWrap(const char *argument, const char *longid){
+long ProcessGraphWrap(const char *argument, const char *longid, bool testneo4j, struct settings *set){
 	//Mostly the Same as ProcessGraph but tuned for the JavaWrapper arguments
 	if (strlen(argument) < 1)
 		return 0;
-	struct settings set;
-	parsesettings(&set);
-	curl_global_init(CURL_GLOBAL_ALL);
-	DrInventorSqlitedb sqlitedb(set.store.c_str(), set.dbfil.c_str(), slash);
-	Neo4jInteract neo4db(set.neo4j.c_str(), set.neouser.c_str(), set.neopass.c_str());
+	
+	DrInventorSqlitedb sqlitedb(set->store.c_str(), set->dbfil.c_str(), slash);
+	Neo4jInteract neo4db(set->neo4j.c_str(), set->neouser.c_str(), set->neopass.c_str(), testneo4j);
 	if (!neo4db.isopen()){
 		printf_s("\nNot making GV files and cannot access Neo4j database, nothing to do: Exiting\n");
 		return 0;
@@ -391,7 +395,7 @@ bool parsesettings(struct settings *aset){
 		aset->neo4j = "http://localhost:7474/";
 	if (aset->dbfil == ""){
 		char buf[128];
-		sprintf_s(buf, "data.db", slash);
+		sprintf_s(buf, "data.db");
 		aset->dbfil = buf;
 	}
 	if (aset->store == ""){

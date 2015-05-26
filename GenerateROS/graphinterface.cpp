@@ -61,7 +61,7 @@ int GraphInterface::FindUniqueRelations(std::vector<struct anode> *relations, st
 	for (unsigned int i = 0; i < toreturn.size(); ++i){
 		mostcommon->emplace_back(uniques[toreturn[i]]);
 	}
-	return uniques.size();
+	return (int)uniques.size();
 }
 
 void GraphInterface::LargestComponent(std::vector<int> *comp, int num){
@@ -97,7 +97,7 @@ void GraphInterface::HighestDegree(void){
 	int currhigh = 0;
 	int is;
 	for (unsigned int i = 0; i < vertex_conc.size(); ++i){
-		is = boost::degree(vertex_conc[i], g);
+		is = (unsigned int)boost::degree(vertex_conc[i], g);
 		if (is > currhigh){
 			if (highestdegree.size() > 1)
 				std::vector<int>().swap(highestdegree);

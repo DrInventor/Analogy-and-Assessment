@@ -37,7 +37,7 @@ struct settings{
 
 bool parsesettings(struct settings *aset);
 int ProcessGraph(const char *, DrInventorSqlitedb *sqlitedb, const char *gvloc, Neo4jInteract *neo4db, bool  dogv, std::string tokenfile="", bool oldtkn=false, bool tc=false);
-long ProcessGraphWrap(const char *argument, const char *id);
+long ProcessGraphWrap(const char *argument, const char *id, bool testneo4j, struct settings *set);
 int ProcessAllGraphs(DrInventorSqlitedb *sqlitedb, const char *graphviz, const char *neo4jlo, bool dogv, const char *neopass, const char *neouser);
 int KeepSentences(int argc, char** argv, bool range=true);
 

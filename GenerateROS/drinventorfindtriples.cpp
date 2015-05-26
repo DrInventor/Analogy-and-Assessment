@@ -326,7 +326,7 @@ void DrInventorFindTriples::FindTriples(bool tc){
 											tempword.type = 1;
 											tempword.st = (*sit).words[(*nit).from].st + "_" + (*sit).words[(*it).from].st;
 											(*sit).words.emplace_back(tempword);
-											temptriple.ver = (*sit).words.size() - 1;
+											temptriple.ver = (int)(*sit).words.size() - 1;
 											temptriple.sbj = (*anotit).to;
 												keepgoing = false;
 											}
@@ -463,7 +463,7 @@ void DrInventorFindTriples::combineVC(void){
 		}
 		if (todelete.size() > 0)
 			blockprint = true;
-		for (int i = todelete.size() - 1; i >= 0; --i){
+		for (int i = (int)todelete.size() - 1; i >= 0; --i){
 			(*sit).newlinks.erase(todelete[i]);
 		}
 	}
@@ -662,7 +662,7 @@ int DrInventorFindTriples::processlineofcombinedtable(std::string which){
 		tempword.id = FromID;
 		tempword.st = FromWord;
 		tempword.pos = FromPOS;
-		whichword[0] = ((*sentit).words.size());
+		whichword[0] = (int)((*sentit).words.size());
 		(*sentit).words.emplace_back(tempword);
 	}
 	whichword[1] = find_word(ToID, (*sentit).words);
@@ -671,7 +671,7 @@ int DrInventorFindTriples::processlineofcombinedtable(std::string which){
 		tempword.id = ToID;
 		tempword.st = ToWord;
 		tempword.st = ToPOS;
-		whichword[1] = ((*sentit).words.size());
+		whichword[1] = (int)((*sentit).words.size());
 		(*sentit).words.emplace_back(tempword);
 	}
 	struct link templink;
@@ -741,7 +741,7 @@ int DrInventorFindTriples::processline(std::string which){
 		struct word tempword;
 		tempword.id = FromID;
 		tempword.st = FromWord;
-		whichword[0] = ((*sentit).words.size());
+		whichword[0] = (int)((*sentit).words.size());
 		(*sentit).words.emplace_back(tempword);
 	}
 	whichword[1] = find_word(ToID, (*sentit).words);
@@ -749,7 +749,7 @@ int DrInventorFindTriples::processline(std::string which){
 		struct word tempword;
 		tempword.id = ToID;
 		tempword.st = ToWord;
-		whichword[1] = ((*sentit).words.size());
+		whichword[1] = (int)((*sentit).words.size());
 		(*sentit).words.emplace_back(tempword);
 	}
 	struct link templink;

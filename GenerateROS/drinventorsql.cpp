@@ -199,7 +199,7 @@ void DrInventorSqlitedb::UpdateNodeCount(long graphid, unsigned int relcount, un
 
 long DrInventorSqlitedb::GetIDfromLongID(const char *longid){
 	std::stringstream sqlcommand;
-	sqlcommand << "SELECT key from Graphlist WHERE filename='" << longid << "';";
+	sqlcommand << "SELECT key from Graphlist WHERE tknfilename='" << longid << "';";
 	std::vector<std::string> values;
 	unsigned int nrows, ncols;
 	do_sqlite_table(sqlcommand.str().c_str(), &values, &nrows, &ncols);
@@ -254,8 +254,8 @@ long DrInventorSqlitedb::InsertFile(const char *filename, const char *uniqueid, 
 		return -1;
 	}
 	*isnew = true;
-	//Create the directory to store the files and copy the originals into this directory
 	long filekey = (long)sqlite3_last_insert_rowid(db);
+	//Create the directory to store the files and copy the originals into this directory: Only done if needed.
 	if (createfolder){
 		std::stringstream newdir;
 		newdir << filehome << filekey;
